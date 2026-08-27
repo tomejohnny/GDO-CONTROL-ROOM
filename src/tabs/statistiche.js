@@ -86,7 +86,7 @@ function renderContent() {
       <td>${escapeHtml(art?.descrizione || "—")}</td>
       <td style="text-align:right">${number(v.quantita)}</td>
       <td style="text-align:right" class="amount">${money(v.valore_euro)}</td>
-      <td style="text-align:right">${v.costo_acquisto != null ? money(v.costo_acquisto) : "—"}</td>
+      <td style="text-align:right" class="amount">${v.costo_acquisto != null ? money(v.costo_acquisto) : "—"}</td>
       <td style="text-align:right" class="amount">${v.margine_valore != null ? money(v.margine_valore) : "—"}</td>
       <td style="text-align:right">${v.margine_percentuale != null ? percent(v.margine_percentuale * (v.margine_percentuale <= 1 ? 100 : 1)) : "—"}</td>
     </tr>`;
