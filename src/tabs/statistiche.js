@@ -1,5 +1,5 @@
 import { getState, gruppoById, articoloById } from "../lib/store.js";
-import { escapeHtml, money, number, formatMonth, CATEGORIE_ARTICOLO } from "../lib/format.js";
+import { escapeHtml, money, number, percent, formatMonth, CATEGORIE_ARTICOLO } from "../lib/format.js";
 import { lineChart, barChartVertical } from "../lib/charts.js";
 
 function monthKey(dateStr) {
@@ -35,12 +35,18 @@ function renderContent() {
 
   const totaleValore = rows.reduce((s, v) => s + Number(v.valore_euro || 0), 0);
   const totaleQuantita = rows.reduce((s, v) => s + Number(v.quantita || 0), 0);
+  const totaleCosto = rows.reduce((s, v) => s + Number(v.costo_acquisto || 0), 0);
+  const totaleMargine = rows.reduce((s, v) => s + Number(v.margine_valore || 0), 0);
+  const margineMedioPct = totaleValore ? (totaleMargine / totaleValore) * 100 : 0;
   const gruppiCoinvolti = new Set(rows.map(v => v.gruppo_id)).size;
 
   document.getElementById("st-kpi-valore").textContent = money(totaleValore);
   document.getElementById("st-kpi-quantita").textContent = number(totaleQuantita);
   document.getElementById("st-kpi-gruppi").textContent = gruppiCoinvolti;
   document.getElementById("st-kpi-righe").textContent = number(rows.length);
+  document.getElementById("st-kpi-costo").textContent = money(totaleCosto);
+  document.getElementById("st-kpi-margine").textContent = money(totaleMargine);
+  document.getElementById("st-kpi-margine-pct").textContent = margineMedioPct.toLocaleString("it-IT", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "%";
 
   // Trend mensile
   const byMonth = new Map();
@@ -80,8 +86,11 @@ function renderContent() {
       <td>${escapeHtml(art?.descrizione || "—")}</td>
       <td style="text-align:right">${number(v.quantita)}</td>
       <td style="text-align:right" class="amount">${money(v.valore_euro)}</td>
+      <td style="text-align:right">${v.costo_acquisto != null ? money(v.costo_acquisto) : "—"}</td>
+      <td style="text-align:right" class="amount">${v.margine_valore != null ? money(v.margine_valore) : "—"}</td>
+      <td style="text-align:right">${v.margine_percentuale != null ? percent(v.margine_percentuale * (v.margine_percentuale <= 1 ? 100 : 1)) : "—"}</td>
     </tr>`;
-  }).join("") : `<tr><td colspan="6" class="empty-state">Nessuna riga di venduto trovata. Usa "Import dati" per caricare le statistiche.</td></tr>`;
+  }).join("") : `<tr><td colspan="9" class="empty-state">Nessuna riga di venduto trovata. Usa "Import dati" per caricare le statistiche.</td></tr>`;
   if (rows.length > 100) {
     tbody.innerHTML += `<tr><td colspan="6" class="text-muted" style="text-align:center;font-size:0.72rem">Mostrate le 100 righe più recenti su ${rows.length} totali. Affina i filtri per restringere.</td></tr>`;
   }
@@ -121,6 +130,19 @@ export function render() {
           <div class="kpi-title">Righe di venduto</div>
           <div class="kpi-value" id="st-kpi-righe">0</div>
         </div>
+        <div class="kpi-card">
+          <div class="kpi-title">Costo di acquisto</div>
+          <div class="kpi-value" id="st-kpi-costo">€ 0,00</div>
+        </div>
+        <div class="kpi-card green">
+          <div class="kpi-title">Margine</div>
+          <div class="kpi-value" id="st-kpi-margine">€ 0,00</div>
+        </div>
+        <div class="kpi-card green">
+          <div class="kpi-title">Margine % medio</div>
+          <div class="kpi-value" id="st-kpi-margine-pct">0,0%</div>
+          <div class="kpi-sub">Margine sul fatturato del periodo</div>
+        </div>
       </div>
     </div>
     <div class="grid-2">
@@ -135,10 +157,16 @@ export function render() {
     </div>
     <div class="card">
       <h2>Dettaglio venduto</h2>
-      <table class="desktop-table">
-        <thead><tr><th>Periodo</th><th>Gruppo</th><th>Punto vendita</th><th>Articolo</th><th style="text-align:right">Quantità</th><th style="text-align:right">Valore</th></tr></thead>
-        <tbody id="st-table-body"></tbody>
-      </table>
+      <div style="overflow-x:auto">
+        <table class="desktop-table">
+          <thead><tr>
+            <th>Periodo</th><th>Gruppo</th><th>Punto vendita</th><th>Articolo</th>
+            <th style="text-align:right">Quantità</th><th style="text-align:right">Valore</th>
+            <th style="text-align:right">Costo</th><th style="text-align:right">Margine €</th><th style="text-align:right">Margine %</th>
+          </tr></thead>
+          <tbody id="st-table-body"></tbody>
+        </table>
+      </div>
     </div>`;
 
   ["st-filter-gruppo", "st-filter-categoria", "st-filter-da", "st-filter-a"].forEach(id => {
