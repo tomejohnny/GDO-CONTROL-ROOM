@@ -1,12 +1,37 @@
 import { getState, gruppoById, articoloById } from "../lib/store.js";
 import { escapeHtml, money, number, percent, formatMonth, CATEGORIE_ARTICOLO } from "../lib/format.js";
 import { lineChart, barChartVertical } from "../lib/charts.js";
+import { downloadCsv } from "../lib/export.js";
 
 const TOP_N = 15;
 const sectionState = {
   articolo: { collapsed: false, showAll: false },
   pdv: { collapsed: false, showAll: false },
 };
+let lastAggregatedArticolo = [];
+let lastAggregatedPdv = [];
+
+function exportArticoloCsv() {
+  const headers = ["Gruppo", "Articolo", "Categoria", "Punti vendita", "Quantità", "Valore", "Costo", "Margine €", "Margine %"];
+  const rows = lastAggregatedArticolo.map(g => {
+    const gruppo = gruppoById(g.gruppo_id);
+    const art = articoloById(g.articolo_id);
+    const marginePct = g.valore_euro ? (g.margine_valore / g.valore_euro) * 100 : 0;
+    return [gruppo?.nome || "", art?.descrizione || "", art ? CATEGORIE_ARTICOLO[art.categoria] || art.categoria : "", g.puntiVendita.size, g.quantita, g.valore_euro.toFixed(2), g.costo_acquisto.toFixed(2), g.margine_valore.toFixed(2), marginePct.toFixed(1)];
+  });
+  downloadCsv("venduto_per_articolo.csv", headers, rows);
+}
+
+function exportPdvCsv() {
+  const headers = ["Gruppo", "Punto vendita", "Articoli", "Quantità", "Valore", "Costo", "Margine €", "Margine %"];
+  const rows = lastAggregatedPdv.map(g => {
+    const gruppo = gruppoById(g.gruppo_id);
+    const pdv = g.punto_vendita_id != null ? getState().puntiVendita.find(p => String(p.id) === String(g.punto_vendita_id)) : null;
+    const marginePct = g.valore_euro ? (g.margine_valore / g.valore_euro) * 100 : 0;
+    return [gruppo?.nome || "", pdv?.nome_insegna || "Aggregato gruppo", g.articoli.size, g.quantita, g.valore_euro.toFixed(2), g.costo_acquisto.toFixed(2), g.margine_valore.toFixed(2), marginePct.toFixed(1)];
+  });
+  downloadCsv("fatturato_per_punto_vendita.csv", headers, rows);
+}
 
 function monthKey(dateStr) {
   const d = new Date(dateStr);
@@ -173,7 +198,10 @@ function renderContent() {
     ? `Venduto per articolo — ${pdvSelezionato.nome_insegna}`
     : "Venduto per gruppo e articolo";
 
-  renderSection("articolo", "st-table-body", aggregateByArticolo(rows), g => {
+  lastAggregatedArticolo = aggregateByArticolo(rows);
+  lastAggregatedPdv = aggregateByPuntoVendita(rows);
+
+  renderSection("articolo", "st-table-body", lastAggregatedArticolo, g => {
     const gruppo = gruppoById(g.gruppo_id);
     const art = articoloById(g.articolo_id);
     const marginePct = g.valore_euro ? (g.margine_valore / g.valore_euro) * 100 : 0;
@@ -190,7 +218,7 @@ function renderContent() {
     </tr>`;
   }, 9);
 
-  renderSection("pdv", "st-table-pdv-body", aggregateByPuntoVendita(rows), g => {
+  renderSection("pdv", "st-table-pdv-body", lastAggregatedPdv, g => {
     const gruppo = gruppoById(g.gruppo_id);
     const pdv = g.punto_vendita_id != null ? getState().puntiVendita.find(p => String(p.id) === String(g.punto_vendita_id)) : null;
     const marginePct = g.valore_euro ? (g.margine_valore / g.valore_euro) * 100 : 0;
@@ -270,7 +298,10 @@ export function render() {
     <div class="card">
       <h2>
         <span id="st-table-title">Venduto per gruppo e articolo</span>
-        <button class="btn btn-ghost btn-sm" id="st-toggle-articolo">▾ Comprimi</button>
+        <span style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" id="st-export-articolo">⇩ Esporta CSV</button>
+          <button class="btn btn-ghost btn-sm" id="st-toggle-articolo">▾ Comprimi</button>
+        </span>
       </h2>
       <div id="st-articolo-body-wrap">
         <p class="hint">Aggregato su tutto il periodo filtrato. Seleziona un gruppo e poi un punto vendita specifico per l'analisi di un singolo cliente.</p>
@@ -290,7 +321,10 @@ export function render() {
     <div class="card">
       <h2>
         <span>Fatturato per punto vendita</span>
-        <button class="btn btn-ghost btn-sm" id="st-toggle-pdv">▾ Comprimi</button>
+        <span style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" id="st-export-pdv">⇩ Esporta CSV</button>
+          <button class="btn btn-ghost btn-sm" id="st-toggle-pdv">▾ Comprimi</button>
+        </span>
       </h2>
       <div id="st-pdv-body-wrap">
         <p class="hint">Chi fattura di più, a parità di filtri applicati sopra.</p>
@@ -307,6 +341,9 @@ export function render() {
         <div id="st-pdv-more" style="margin-top:12px;text-align:center"></div>
       </div>
     </div>`;
+
+  document.getElementById("st-export-articolo").addEventListener("click", exportArticoloCsv);
+  document.getElementById("st-export-pdv").addEventListener("click", exportPdvCsv);
 
   document.getElementById("st-toggle-articolo").addEventListener("click", () => {
     sectionState.articolo.collapsed = !sectionState.articolo.collapsed;
