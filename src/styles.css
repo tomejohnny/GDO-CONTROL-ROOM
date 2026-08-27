@@ -103,7 +103,11 @@ h1, h2, .brand-name, .login-box h1 { font-family: "Cormorant Garamond", Georgia,
 
 .mobile-cards-container { display: none; }
 @media (max-width: 800px) {
-  .desktop-table { display: none; }
+  /* Solo le tabelle che hanno una vera alternativa a "card" per mobile
+     vengono nascoste; tutte le altre restano visibili e scorrono in
+     orizzontale (vedi .desktop-table dentro un contenitore overflow-x)
+     invece di sparire senza alternativa. */
+  .desktop-table.has-mobile-cards { display: none; }
   .mobile-cards-container { display: flex; flex-direction: column; gap: 10px; }
   .m-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px; }
   .m-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }

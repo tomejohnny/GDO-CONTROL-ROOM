@@ -72,7 +72,7 @@ export function render() {
   const margineBasso = gruppiMargineBasso(vendite);
   const margEl = document.getElementById("dash-margine-basso");
   margEl.innerHTML = margineBasso.length ? `
-    <table class="desktop-table">
+    <div style="overflow-x:auto"><table class="desktop-table">
       <thead><tr><th>Gruppo</th><th style="text-align:right">Fatturato</th><th style="text-align:right">Margine</th></tr></thead>
       <tbody>
         ${margineBasso.slice(0, 8).map(g => `<tr>
@@ -81,13 +81,13 @@ export function render() {
           <td style="text-align:right" class="text-red">${percent(g.marginePct)}</td>
         </tr>`).join("")}
       </tbody>
-    </table>` : `<div class="empty-state">Nessun gruppo sotto la soglia di margine, o dati di venduto non ancora importati.</div>`;
+    </table></div>` : `<div class="empty-state">Nessun gruppo sotto la soglia di margine, o dati di venduto non ancora importati.</div>`;
 
   // Punti vendita non serviti e senza agente
   const senzaAgente = pdvNonServitiSenzaAgente(puntiVendita);
   const saEl = document.getElementById("dash-senza-agente");
   saEl.innerHTML = senzaAgente.length ? `
-    <table class="desktop-table">
+    <div style="overflow-x:auto"><table class="desktop-table">
       <thead><tr><th>Punto vendita</th><th>Gruppo</th><th>Comune</th></tr></thead>
       <tbody>
         ${senzaAgente.slice(0, 8).map(p => `<tr>
@@ -96,7 +96,7 @@ export function render() {
           <td>${escapeHtml(p.comune || "—")}</td>
         </tr>`).join("")}
       </tbody>
-    </table>
+    </table></div>
     ${senzaAgente.length > 8 ? `<p class="hint" style="margin-top:8px;margin-bottom:0">e altri ${senzaAgente.length - 8} punti vendita.</p>` : ""}
     ` : `<div class="empty-state">Tutti i punti vendita non serviti hanno già un agente assegnato.</div>`;
 
@@ -109,7 +109,7 @@ export function render() {
 
   const oppEl = document.getElementById("dash-opportunita");
   oppEl.innerHTML = opportunita.length ? `
-    <table class="desktop-table">
+    <div style="overflow-x:auto"><table class="desktop-table">
       <thead><tr><th>Gruppo</th><th>PdV non serviti</th><th>Copertura attuale</th></tr></thead>
       <tbody>
         ${opportunita.map(x => `<tr>
@@ -118,13 +118,13 @@ export function render() {
           <td>${x.pct.toFixed(1)}%</td>
         </tr>`).join("")}
       </tbody>
-    </table>` : `<div class="empty-state">Nessuna opportunità rilevata: tutti i punti vendita censiti sono serviti.</div>`;
+    </table></div>` : `<div class="empty-state">Nessuna opportunità rilevata: tutti i punti vendita censiti sono serviti.</div>`;
 
   // Gruppi in attenzione: stato sospeso
   const attenzione = gruppi.filter(g => g.stato === "sospeso");
   const attEl = document.getElementById("dash-attenzione");
   attEl.innerHTML = attenzione.length ? `
-    <table class="desktop-table">
+    <div style="overflow-x:auto"><table class="desktop-table">
       <thead><tr><th>Gruppo</th><th>Area</th><th>Stato</th><th>Note</th></tr></thead>
       <tbody>
         ${attenzione.map(g => `<tr>
@@ -134,5 +134,5 @@ export function render() {
           <td>${escapeHtml(g.note || "—")}</td>
         </tr>`).join("")}
       </tbody>
-    </table>` : `<div class="empty-state">Nessun gruppo in stato critico al momento.</div>`;
+    </table></div>` : `<div class="empty-state">Nessun gruppo in stato critico al momento.</div>`;
 }
