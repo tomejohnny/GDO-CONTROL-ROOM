@@ -133,9 +133,18 @@ function buildContext() {
   const articoliByDesc = new Map(state.articoli.map(a => [normalizeKey(a.descrizione), a.id]));
   const articoliByCodice = new Map(state.articoli.filter(a => a.codice).map(a => [normalizeKey(a.codice), a.id]));
   const pdvByKey = new Map(state.puntiVendita.map(p => [`${p.gruppo_id}::${normalizeKey(p.nome_insegna)}`, p.id]));
+  const pdvStato = new Map(state.puntiVendita.map(p => [p.id, p.stato]));
   const assortByKey = new Map(state.assortimenti.map(r => [`${r.punto_vendita_id}::${r.articolo_id}`, r.id]));
   const venditeByKey = new Map(state.vendite.map(v => [`${v.gruppo_id}::${v.punto_vendita_id}::${v.articolo_id}::${v.periodo}`, v.id]));
-  return { gruppiByName, agentiByFull, agentiByCognome, articoliByDesc, articoliByCodice, pdvByKey, assortByKey, venditeByKey };
+  return { gruppiByName, agentiByFull, agentiByCognome, articoliByDesc, articoliByCodice, pdvByKey, pdvStato, assortByKey, venditeByKey };
+}
+
+// Un punto vendita con vendite vere importate e' per forza servito, anche
+// se l'anagrafica di partenza non lo segnalava come tale.
+async function markServitoSeNecessario(ctx, pdvId) {
+  if (pdvId == null || ctx.pdvStato.get(pdvId) === "servito") return;
+  await updateRow("punti_vendita", pdvId, { stato: "servito" });
+  ctx.pdvStato.set(pdvId, "servito");
 }
 
 async function resolveGruppoId(ctx, nomeGruppo, warnings) {
@@ -388,6 +397,7 @@ export const TARGETS = {
       const warnings = [];
       const gruppoId = await resolveGruppoId(ctx, gruppoNome, warnings);
       const pdvId = pdvNome ? await resolvePdvId(ctx, gruppoId, pdvNome, warnings) : null;
+      await markServitoSeNecessario(ctx, pdvId);
       const articoloDesc = s(row.articolo);
       const articoloId = articoloDesc ? await resolveArticoloId(ctx, articoloDesc, s(row.codice_articolo), "", warnings) : null;
       const payload = {
