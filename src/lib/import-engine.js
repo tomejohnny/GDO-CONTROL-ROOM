@@ -133,10 +133,15 @@ function buildContext() {
   const articoliByDesc = new Map(state.articoli.map(a => [normalizeKey(a.descrizione), a.id]));
   const articoliByCodice = new Map(state.articoli.filter(a => a.codice).map(a => [normalizeKey(a.codice), a.id]));
   const pdvByKey = new Map(state.puntiVendita.map(p => [`${p.gruppo_id}::${normalizeKey(p.nome_insegna)}`, p.id]));
+  // Per l'import dell'anagrafica: alcune insegne (es. "Maxi Family") si
+  // ripetono su decine di indirizzi diversi. Nome da solo le confonderebbe
+  // tutte in un unico punto vendita: qui la chiave include anche comune e
+  // indirizzo per distinguere le sedi fisiche reali.
+  const pdvByKeyDetailed = new Map(state.puntiVendita.map(p => [`${p.gruppo_id}::${normalizeKey(p.nome_insegna)}::${normalizeKey(p.comune)}::${normalizeKey(p.indirizzo)}`, p.id]));
   const pdvStato = new Map(state.puntiVendita.map(p => [p.id, p.stato]));
   const assortByKey = new Map(state.assortimenti.map(r => [`${r.punto_vendita_id}::${r.articolo_id}`, r.id]));
   const venditeByKey = new Map(state.vendite.map(v => [`${v.gruppo_id}::${v.punto_vendita_id}::${v.articolo_id}::${v.periodo}`, v.id]));
-  return { gruppiByName, agentiByFull, agentiByCognome, articoliByDesc, articoliByCodice, pdvByKey, pdvStato, assortByKey, venditeByKey };
+  return { gruppiByName, agentiByFull, agentiByCognome, articoliByDesc, articoliByCodice, pdvByKey, pdvByKeyDetailed, pdvStato, assortByKey, venditeByKey };
 }
 
 // Un punto vendita con vendite vere importate e' per forza servito, anche
@@ -281,12 +286,13 @@ export const TARGETS = {
         data_attivazione: parseDateLoose(row.data_attivazione),
         note: s(row.note) || null,
       };
-      const key = `${gruppoId}::${normalizeKey(nomeInsegna)}`;
-      const existingId = ctx.pdvByKey.get(key);
+      const key = `${gruppoId}::${normalizeKey(nomeInsegna)}::${normalizeKey(payload.comune)}::${normalizeKey(payload.indirizzo)}`;
+      const existingId = ctx.pdvByKeyDetailed.get(key);
       if (existingId) await updateRow("punti_vendita", existingId, payload);
       else {
         const created = await insertRow("punti_vendita", payload);
-        ctx.pdvByKey.set(key, created.id);
+        ctx.pdvByKeyDetailed.set(key, created.id);
+        ctx.pdvByKey.set(`${gruppoId}::${normalizeKey(nomeInsegna)}`, created.id);
       }
       return { ok: true, warnings };
     },
