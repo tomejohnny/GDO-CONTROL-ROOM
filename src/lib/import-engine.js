@@ -14,6 +14,16 @@ export function normalizeKey(s) {
     .replace(/[^a-z0-9]/g, "");
 }
 
+const SUBTOTAL_WORDS = ["totale", "totali", "totalecomplessivo", "subtotale", "somma", "riepilogo", "grandtotal", "total"];
+
+// Molti export da gestionali aggiungono una riga di riepilogo/totale a fine
+// blocco (es. "TOTALE" come nome punto vendita): se importata come se fosse
+// un punto vendita vero, raddoppia i valori nei totali aggregati.
+export function isSubtotalLabel(text) {
+  const key = normalizeKey(text);
+  return SUBTOTAL_WORDS.some(w => key === w);
+}
+
 const SYNONYMS = {
   nome: ["nome", "gruppo", "nomegruppo", "insegnagruppo", "catena"],
   gruppo: ["gruppo", "gruppogdo", "insegnagruppo", "catena", "nomegruppo"],
@@ -246,6 +256,7 @@ export const TARGETS = {
       const nomeInsegna = s(row.nome_insegna);
       if (!gruppoNome) return { ok: false, error: "gruppo mancante" };
       if (!nomeInsegna) return { ok: false, error: "nome insegna mancante" };
+      if (isSubtotalLabel(nomeInsegna)) return { ok: false, error: `riga di riepilogo/totale esclusa ("${nomeInsegna}" non è un punto vendita reale)` };
       const warnings = [];
       const gruppoId = await resolveGruppoId(ctx, gruppoNome, warnings);
       const agenteId = resolveAgenteId(ctx, s(row.agente), warnings);
@@ -325,6 +336,7 @@ export const TARGETS = {
       const pdvNome = s(row.punto_vendita);
       const articoloDesc = s(row.articolo);
       if (!gruppoNome || !pdvNome || !articoloDesc) return { ok: false, error: "gruppo, punto vendita o articolo mancante" };
+      if (isSubtotalLabel(pdvNome)) return { ok: false, error: `riga di riepilogo/totale esclusa ("${pdvNome}" non è un punto vendita reale)` };
       const warnings = [];
       const gruppoId = await resolveGruppoId(ctx, gruppoNome, warnings);
       const pdvId = await resolvePdvId(ctx, gruppoId, pdvNome, warnings);
@@ -371,9 +383,10 @@ export const TARGETS = {
       const periodo = parseDateLoose(row.periodo);
       if (!gruppoNome) return { ok: false, error: "gruppo mancante" };
       if (!periodo) return { ok: false, error: "periodo non riconosciuto" };
+      const pdvNome = s(row.punto_vendita);
+      if (isSubtotalLabel(pdvNome)) return { ok: false, error: `riga di riepilogo/totale esclusa ("${pdvNome}" non è un punto vendita reale)` };
       const warnings = [];
       const gruppoId = await resolveGruppoId(ctx, gruppoNome, warnings);
-      const pdvNome = s(row.punto_vendita);
       const pdvId = pdvNome ? await resolvePdvId(ctx, gruppoId, pdvNome, warnings) : null;
       const articoloDesc = s(row.articolo);
       const articoloId = articoloDesc ? await resolveArticoloId(ctx, articoloDesc, s(row.codice_articolo), "", warnings) : null;
