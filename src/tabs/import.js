@@ -23,6 +23,7 @@ let parsedRows = [];
 let parsedSheets = {}; // { sheetName: rows[] }
 let sheetNames = [];
 let multiSheetMode = false;
+let sheetGruppoNames = {}; // { sheetName: nome gruppo da usare, di default = sheetName }
 let currentFilename = "";
 let savedMapping = {};
 let savedFixed = {};
@@ -119,6 +120,7 @@ async function handleFile(file) {
     }
     sheetNames = workbook.SheetNames;
     parsedSheets = {};
+    sheetGruppoNames = {};
     sheetNames.forEach(name => {
       parsedSheets[name] = XLSX.utils.sheet_to_json(workbook.Sheets[name], { defval: "", raw: false });
     });
@@ -134,6 +136,7 @@ async function handleFile(file) {
     savedMapping = {};
     savedFixed = {};
     savedFfill = {};
+    sheetNames.forEach(name => { sheetGruppoNames[name] = name; });
     multiSheetMode = sheetNames.length > 1;
     step = "mapping";
     renderMapping();
@@ -184,8 +187,17 @@ function renderMapping() {
         <div class="calculator-box" style="margin-bottom:14px">
           <label style="display:flex;align-items:center;gap:8px;font-size:0.8rem;color:var(--text-main)">
             <input type="checkbox" id="imp-multisheet" style="width:auto" ${multiSheetMode ? "checked" : ""}>
-            Importa tutti i ${sheetNames.length} fogli insieme, usando il nome di ciascun foglio come Gruppo GDO (${escapeHtml(sheetNames.join(", "))})
+            Importa tutti i ${sheetNames.length} fogli insieme, usando il nome di ciascun foglio come Gruppo GDO
           </label>
+          ${multiSheetMode ? `
+            <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px">
+              <p class="hint" style="margin:0">Se un foglio corrisponde a un gruppo che hai già censito con un altro nome, correggilo qui prima di importare (altrimenti verrebbe creato un gruppo duplicato).</p>
+              ${sheetNames.map(name => `
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span style="font-size:0.75rem;color:var(--text-muted);min-width:130px">${escapeHtml(name)} →</span>
+                  <input type="text" data-sheet-gruppo="${escapeHtml(name)}" value="${escapeHtml(sheetGruppoNames[name] ?? name)}" style="padding:6px 8px;font-size:0.78rem;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-secondary);flex:1">
+                </div>`).join("")}
+            </div>` : ""}
         </div>` : ""}
       <div style="overflow-x:auto">
         <table class="mapping-table">
@@ -263,6 +275,12 @@ function renderMapping() {
     renderMapping();
   });
 
+  document.querySelectorAll("[data-sheet-gruppo]").forEach(el => {
+    el.addEventListener("input", () => {
+      sheetGruppoNames[el.dataset.sheetGruppo] = el.value.trim() || el.dataset.sheetGruppo;
+    });
+  });
+
   document.querySelectorAll("[data-fixed-field]").forEach(el => {
     el.addEventListener("change", () => {
       const columnSelect = document.querySelector(`[data-map-field="${el.dataset.fixedField}"]`);
@@ -294,7 +312,7 @@ function renderMapping() {
     savedFfill = ffill;
 
     if (multiSheet) {
-      mappedRows = sheetNames.flatMap(name => buildMappedRowsForSheet(parsedSheets[name], target, mapping, fixed, ffill, name));
+      mappedRows = sheetNames.flatMap(name => buildMappedRowsForSheet(parsedSheets[name], target, mapping, fixed, ffill, sheetGruppoNames[name] || name));
     } else {
       mappedRows = buildMappedRowsForSheet(parsedRows, target, mapping, fixed, ffill, null);
     }
