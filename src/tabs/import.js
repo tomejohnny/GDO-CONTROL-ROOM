@@ -1,8 +1,11 @@
 import * as XLSX from "xlsx";
-import { escapeHtml } from "../lib/format.js";
+import { escapeHtml, formatDate } from "../lib/format.js";
 import { TARGETS, suggestColumn, runImport } from "../lib/import-engine.js";
 import { toast, toastError } from "../lib/ui.js";
 import { getState } from "../lib/store.js";
+
+const TABLE_LABELS = Object.fromEntries(Object.values(TARGETS).map(t => [t.table, t.label]));
+let expandedErrorId = null;
 
 // Alcuni campi (gruppo, agente) hanno quasi sempre un valore unico per tutto
 // il file (es. "l'elenco punti vendita di Conad Dao Trento", o "i PdV
@@ -66,10 +69,52 @@ function renderTargetPicker() {
     </div>`;
 }
 
+function renderHistory() {
+  const batches = getState().importBatches;
+  if (!batches.length) {
+    return `<div class="card"><h2>Storico import</h2><div class="empty-state">Nessun import ancora eseguito.</div></div>`;
+  }
+  return `
+    <div class="card">
+      <h2>Storico import</h2>
+      <div style="overflow-x:auto">
+        <table class="desktop-table">
+          <thead><tr><th>Data</th><th>Tipo</th><th>File</th><th style="text-align:right">Totali</th><th style="text-align:right">OK</th><th style="text-align:right">Errori</th><th></th></tr></thead>
+          <tbody>
+            ${batches.slice(0, 20).map(b => `
+              <tr>
+                <td>${formatDate(b.created_at)}</td>
+                <td>${escapeHtml(TABLE_LABELS[b.tabella_target] || b.tabella_target)}</td>
+                <td class="text-muted">${escapeHtml(b.filename || "—")}</td>
+                <td style="text-align:right">${b.righe_totali ?? "—"}</td>
+                <td style="text-align:right" class="text-green">${b.righe_ok ?? "—"}</td>
+                <td style="text-align:right" class="${b.righe_errore ? "text-red" : ""}">${b.righe_errore ?? "—"}</td>
+                <td style="text-align:center">${b.dettagli_errori?.length ? `<button class="btn btn-ghost btn-sm" data-history-toggle="${b.id}">${expandedErrorId === b.id ? "Nascondi" : "Dettagli"}</button>` : ""}</td>
+              </tr>
+              ${expandedErrorId === b.id && b.dettagli_errori?.length ? `
+                <tr><td colspan="7">
+                  <div class="empty-state" style="text-align:left;padding:10px;font-size:0.75rem;color:var(--accent-red)">${b.dettagli_errori.slice(0, 30).map(escapeHtml).join("<br>")}${b.dettagli_errori.length > 30 ? `<br>… e altre ${b.dettagli_errori.length - 30}` : ""}</div>
+                </td></tr>` : ""}
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+      ${batches.length > 20 ? `<p class="hint" style="margin-top:8px;margin-bottom:0">Mostrati gli ultimi 20 import su ${batches.length} totali.</p>` : ""}
+    </div>`;
+}
+
 export function render() {
   const container = document.getElementById("import-content");
   if (!container) return;
-  container.innerHTML = renderTargetPicker() + `<div id="imp-wizard-area"></div>`;
+  container.innerHTML = renderTargetPicker() + `<div id="imp-wizard-area"></div>` + renderHistory();
+
+  container.querySelectorAll("[data-history-toggle]").forEach(el => {
+    el.addEventListener("click", () => {
+      const id = Number(el.dataset.historyToggle);
+      expandedErrorId = expandedErrorId === id ? null : id;
+      render();
+    });
+  });
 
   document.getElementById("imp-target").addEventListener("change", event => {
     currentTarget = event.target.value;
