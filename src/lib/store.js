@@ -8,6 +8,7 @@ const state = {
   assortimenti: [],
   vendite: [],
   attivita: [],
+  importBatches: [],
 };
 
 export function getState() {
@@ -15,7 +16,7 @@ export function getState() {
 }
 
 export async function loadAll() {
-  const [gruppi, puntiVendita, agenti, articoli, assortimenti, vendite, attivita] = await Promise.all([
+  const [gruppi, puntiVendita, agenti, articoli, assortimenti, vendite, attivita, importBatches] = await Promise.all([
     listRows("gdo_groups", { orderBy: "nome" }),
     listRows("punti_vendita", { orderBy: "nome_insegna" }),
     listRows("agenti", { orderBy: "cognome" }),
@@ -23,6 +24,7 @@ export async function loadAll() {
     listRows("assortimenti", { orderBy: "created_at", ascending: false }),
     listRows("vendite", { orderBy: "periodo", ascending: false }),
     listRows("attivita", { orderBy: "created_at", ascending: false }),
+    listRows("import_batches", { orderBy: "created_at", ascending: false }),
   ]);
   state.gruppi = gruppi;
   state.puntiVendita = puntiVendita;
@@ -31,6 +33,7 @@ export async function loadAll() {
   state.assortimenti = assortimenti;
   state.vendite = vendite;
   state.attivita = attivita;
+  state.importBatches = importBatches;
   return state;
 }
 

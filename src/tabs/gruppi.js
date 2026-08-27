@@ -6,7 +6,7 @@ import { toast, toastError } from "../lib/ui.js";
 import { notifyDataChanged } from "../lib/bus.js";
 import { confirmDialog } from "../lib/confirm.js";
 import { coperturaGruppo, fatturatoUltimi12Mesi } from "../lib/kpis.js";
-import { openPdvModal, wirePdvRowActions } from "../lib/pdv-shared.js";
+import { openPdvModal, wirePdvRowActions, populateGruppoSelect } from "../lib/pdv-shared.js";
 import { renderAssortimentoGruppo } from "./assortimenti.js";
 
 const TABLE = "gdo_groups";
@@ -324,12 +324,16 @@ async function onToggleAttivita(id) {
 async function onSubmitAttivita(event) {
   event.preventDefault();
   const payload = {
-    gruppo_id: Number(selectedGruppoId),
+    gruppo_id: Number(document.getElementById("at-gruppo").value),
     tipo: document.getElementById("at-tipo").value,
     descrizione: document.getElementById("at-descrizione").value.trim(),
     responsabile: document.getElementById("at-responsabile").value.trim() || null,
     scadenza: document.getElementById("at-scadenza").value || null,
   };
+  if (!payload.gruppo_id) {
+    toast("Seleziona un gruppo GDO.", "error");
+    return;
+  }
   if (!payload.descrizione) {
     toast("Inserisci una descrizione.", "error");
     return;
@@ -360,6 +364,7 @@ export function render() {
 export function initGruppi() {
   document.getElementById("gruppo-form").addEventListener("submit", onSubmit);
   document.querySelector('[data-open-modal="gruppoModal"]').addEventListener("click", resetForm);
+  window.addEventListener("open-gruppo-detail", event => openDetail(event.detail.id));
 
   document.getElementById("gr-search").addEventListener("input", renderLista);
   document.getElementById("gr-filter-stato").addEventListener("change", renderLista);
@@ -381,6 +386,7 @@ export function initGruppi() {
 
   document.getElementById("gd-attivita-new").addEventListener("click", () => {
     document.getElementById("attivita-form").reset();
+    populateGruppoSelect(document.getElementById("at-gruppo"), selectedGruppoId);
     openModal("attivitaModal");
   });
   document.getElementById("attivita-form").addEventListener("submit", onSubmitAttivita);

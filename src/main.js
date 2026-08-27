@@ -13,6 +13,7 @@ import { render as renderGruppi, initGruppi } from "./tabs/gruppi.js";
 import { render as renderPuntiVendita, initPuntiVendita } from "./tabs/punti-vendita.js";
 import { render as renderAgenti, initAgenti } from "./tabs/agenti.js";
 import { render as renderAssortimenti, initAssortimenti } from "./tabs/assortimenti.js";
+import { render as renderAttivita } from "./tabs/attivita.js";
 import { render as renderStatistiche } from "./tabs/statistiche.js";
 import { render as renderImport } from "./tabs/import.js";
 
@@ -24,6 +25,7 @@ const PAGE_TITLES = {
   "punti-vendita": "Punti vendita",
   agenti: "Agenti",
   assortimenti: "Assortimenti",
+  attivita: "Attività",
   statistiche: "Statistiche venduto",
   import: "Import dati",
 };
@@ -34,6 +36,7 @@ function renderAll() {
   renderPuntiVendita();
   renderAgenti();
   renderAssortimenti();
+  renderAttivita();
   renderStatistiche();
   renderImport();
   refreshKpis();

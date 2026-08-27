@@ -40,7 +40,7 @@ export function barChartVertical({ labels, series, width = 600, height = 220 }) 
 }
 
 // Barre orizzontali: ideale per confronti tra gruppi (es. copertura %).
-export function barChartHorizontal({ items, width = 600, max: maxOverride, unit = "" }) {
+export function barChartHorizontal({ items, width = 600, max: maxOverride, unit = "", formatValue }) {
   if (!items.length) return `<div class="empty-state">Nessun dato da mostrare.</div>`;
 
   const rowH = 26;
@@ -58,7 +58,7 @@ export function barChartHorizontal({ items, width = 600, max: maxOverride, unit 
       <text x="${labelW - 8}" y="${(y + rowH / 2 + 4).toFixed(1)}" font-size="11" fill="var(--text-main)" text-anchor="end">${escapeHtml(it.label)}</text>
       <rect x="${labelW}" y="${y}" width="${chartW}" height="${rowH}" fill="var(--bg-card)" rx="5"/>
       <rect x="${labelW}" y="${y}" width="${barW.toFixed(1)}" height="${rowH}" fill="${it.color || "var(--accent-blue)"}" rx="5"/>
-      <text x="${(labelW + chartW + 8).toFixed(1)}" y="${(y + rowH / 2 + 4).toFixed(1)}" font-size="11" fill="var(--text-muted)">${it.value != null ? it.value.toFixed ? it.value.toFixed(1) : it.value : ""}${unit}</text>`;
+      <text x="${(labelW + chartW + 8).toFixed(1)}" y="${(y + rowH / 2 + 4).toFixed(1)}" font-size="11" fill="var(--text-muted)">${formatValue ? formatValue(it.value) : (it.value != null ? (it.value.toFixed ? it.value.toFixed(1) : it.value) : "")}${formatValue ? "" : unit}</text>`;
   });
 
   return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" preserveAspectRatio="xMidYMid meet">${rows}</svg>`;
