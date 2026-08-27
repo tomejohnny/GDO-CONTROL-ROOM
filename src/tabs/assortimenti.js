@@ -1,0 +1,324 @@
+import { getState, loadAll, gruppoById, articoloById, puntiVenditaDelGruppo } from "../lib/store.js";
+import { insertRow, updateRow, deleteRow } from "../lib/db.js";
+import { escapeHtml, statoBadge, STATO_ASSORTIMENTO, CATEGORIE_ARTICOLO, formatDate } from "../lib/format.js";
+import { openModal, closeModal } from "../lib/modal.js";
+import { toast, toastError } from "../lib/ui.js";
+import { notifyDataChanged } from "../lib/bus.js";
+import { confirmDialog } from "../lib/confirm.js";
+
+let editingArticoloId = null;
+let selectedPdvPerGruppo = {};
+
+// ============================================================= CATALOGO ===
+
+function articoloRow(a) {
+  return `<tr>
+    <td><strong>${escapeHtml(a.descrizione)}</strong>${a.codice ? ` <span class="text-muted">(${escapeHtml(a.codice)})</span>` : ""}</td>
+    <td>${escapeHtml(CATEGORIE_ARTICOLO[a.categoria] || a.categoria)}</td>
+    <td>${escapeHtml(a.unita_misura || "—")}</td>
+    <td>${a.attivo === false ? `<span class="badge" style="background:var(--text-muted)">Non attivo</span>` : `<span class="badge" style="background:var(--accent-green)">Attivo</span>`}</td>
+    <td style="text-align:center">
+      <button class="btn btn-ghost btn-sm" data-art-edit="${a.id}">Modifica</button>
+      <button class="btn btn-red btn-sm" data-art-delete="${a.id}">Elimina</button>
+    </td>
+  </tr>`;
+}
+
+function wireArticoloActions(root) {
+  root.querySelectorAll("[data-art-edit]").forEach(el => el.addEventListener("click", () => openArticoloModal(el.dataset.artEdit)));
+  root.querySelectorAll("[data-art-delete]").forEach(el => el.addEventListener("click", () => onDeleteArticolo(el.dataset.artDelete)));
+}
+
+function openArticoloModal(id) {
+  const a = id ? getState().articoli.find(r => String(r.id) === String(id)) : null;
+  editingArticoloId = a?.id ?? null;
+  document.getElementById("articolo-modal-title").textContent = a ? "Modifica articolo" : "Nuovo articolo";
+  document.getElementById("ar-descrizione").value = a?.descrizione || "";
+  document.getElementById("ar-codice").value = a?.codice || "";
+  document.getElementById("ar-um").value = a?.unita_misura || "";
+  document.getElementById("ar-categoria").value = a?.categoria || "formaggi";
+  document.getElementById("ar-attivo").checked = a ? a.attivo !== false : true;
+  openModal("articoloModal");
+}
+
+async function onDeleteArticolo(id) {
+  if (!(await confirmDialog("Eliminare questo articolo dal catalogo? Verranno rimossi anche gli assortimenti collegati."))) return;
+  try {
+    await deleteRow("articoli", id);
+    await loadAll();
+    notifyDataChanged();
+    toast("Articolo eliminato");
+  } catch (err) {
+    toastError(err);
+  }
+}
+
+async function onSubmitArticolo(event) {
+  event.preventDefault();
+  const payload = {
+    descrizione: document.getElementById("ar-descrizione").value.trim(),
+    codice: document.getElementById("ar-codice").value.trim() || null,
+    unita_misura: document.getElementById("ar-um").value.trim() || null,
+    categoria: document.getElementById("ar-categoria").value,
+    attivo: document.getElementById("ar-attivo").checked,
+  };
+  if (!payload.descrizione) {
+    toast("Inserisci la descrizione dell'articolo.", "error");
+    return;
+  }
+  const submitBtn = event.target.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.disabled = true;
+  try {
+    if (editingArticoloId) await updateRow("articoli", editingArticoloId, payload);
+    else await insertRow("articoli", payload);
+    closeModal("articoloModal");
+    await loadAll();
+    notifyDataChanged();
+    toast("Articolo salvato", "success");
+  } catch (err) {
+    toastError(err);
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
+}
+
+// ========================================================= VISTA GLOBALE ===
+
+function globalFilters() {
+  return {
+    search: (document.getElementById("as-g-search")?.value || "").trim().toLowerCase(),
+    gruppo: document.getElementById("as-g-filter-gruppo")?.value || "",
+    stato: document.getElementById("as-g-filter-stato")?.value || "",
+  };
+}
+
+function globalFilteredRows() {
+  const f = globalFilters();
+  const { puntiVendita } = getState();
+  return getState().assortimenti.filter(row => {
+    const pdv = puntiVendita.find(p => String(p.id) === String(row.punto_vendita_id));
+    const articolo = articoloById(row.articolo_id);
+    if (f.gruppo && String(pdv?.gruppo_id) !== f.gruppo) return false;
+    if (f.stato && row.stato !== f.stato) return false;
+    if (f.search && !`${articolo?.descrizione || ""} ${pdv?.nome_insegna || ""}`.toLowerCase().includes(f.search)) return false;
+    return true;
+  });
+}
+
+function renderGlobalTable() {
+  const tbody = document.getElementById("as-g-table-body");
+  if (!tbody) return;
+  const rows = globalFilteredRows();
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Nessun assortimento trovato con questi filtri.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(row => {
+    const pdv = getState().puntiVendita.find(p => String(p.id) === String(row.punto_vendita_id));
+    const gruppo = pdv ? gruppoById(pdv.gruppo_id) : null;
+    const articolo = articoloById(row.articolo_id);
+    return `<tr>
+      <td>${escapeHtml(gruppo?.nome || "—")}</td>
+      <td>${escapeHtml(pdv?.nome_insegna || "—")}</td>
+      <td>${escapeHtml(articolo?.descrizione || "—")}</td>
+      <td>${statoBadge(STATO_ASSORTIMENTO, row.stato)}</td>
+      <td>${formatDate(row.data_inizio)}</td>
+      <td style="text-align:center"><button class="btn btn-red btn-sm" data-as-delete="${row.id}">Elimina</button></td>
+    </tr>`;
+  }).join("");
+
+  tbody.querySelectorAll("[data-as-delete]").forEach(el => el.addEventListener("click", () => onDeleteAssortimento(el.dataset.asDelete)));
+}
+
+async function onDeleteAssortimento(id) {
+  if (!(await confirmDialog("Rimuovere questo assortimento?"))) return;
+  try {
+    await deleteRow("assortimenti", id);
+    await loadAll();
+    notifyDataChanged();
+    toast("Assortimento rimosso");
+  } catch (err) {
+    toastError(err);
+  }
+}
+
+export function render() {
+  const container = document.getElementById("assortimenti-content");
+  if (!container) return;
+
+  const gruppi = [...getState().gruppi].sort((a, b) => a.nome.localeCompare(b.nome));
+  container.innerHTML = `
+    <div class="card">
+      <h2>
+        <span>Catalogo articoli</span>
+        <button class="btn btn-sm" id="as-art-new">+ Nuovo articolo</button>
+      </h2>
+      <table class="desktop-table">
+        <thead><tr><th>Articolo</th><th>Categoria</th><th>U.M.</th><th>Stato</th><th style="text-align:center">Azioni</th></tr></thead>
+        <tbody id="as-articoli-table-body">${getState().articoli.map(articoloRow).join("") || `<tr><td colspan="5" class="empty-state">Nessun articolo a catalogo. Aggiungine uno per iniziare.</td></tr>`}</tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h2>Assortimenti — vista trasversale</h2>
+      <p class="hint">Cosa compra ciascun punto vendita, e a che punto sono le proposte in corso. Per aggiungere un articolo a un punto vendita, apri il gruppo GDO e usa la scheda "Assortimento".</p>
+      <div class="filter-bar">
+        <input id="as-g-search" placeholder="Cerca articolo o punto vendita">
+        <select id="as-g-filter-gruppo"><option value="">Tutti i gruppi</option>${gruppi.map(g => `<option value="${g.id}">${escapeHtml(g.nome)}</option>`).join("")}</select>
+        <select id="as-g-filter-stato">
+          <option value="">Tutti gli stati</option>
+          <option value="attivo">Attivo</option>
+          <option value="proposto">Proposto</option>
+          <option value="in_trattativa">In trattativa</option>
+          <option value="rifiutato">Rifiutato</option>
+          <option value="sospeso">Sospeso</option>
+        </select>
+      </div>
+      <table class="desktop-table">
+        <thead><tr><th>Gruppo</th><th>Punto vendita</th><th>Articolo</th><th>Stato</th><th>Data inizio</th><th style="text-align:center">Azioni</th></tr></thead>
+        <tbody id="as-g-table-body"></tbody>
+      </table>
+    </div>`;
+
+  wireArticoloActions(container);
+  document.getElementById("as-art-new").addEventListener("click", () => openArticoloModal(null));
+  ["as-g-search", "as-g-filter-gruppo", "as-g-filter-stato"].forEach(id => {
+    document.getElementById(id).addEventListener("input", renderGlobalTable);
+    document.getElementById(id).addEventListener("change", renderGlobalTable);
+  });
+  renderGlobalTable();
+}
+
+// ==================================================== VISTA PER GRUPPO ===
+
+function articoliDisponibiliPerPdv(pdvId) {
+  const usati = new Set(getState().assortimenti.filter(r => String(r.punto_vendita_id) === String(pdvId)).map(r => String(r.articolo_id)));
+  return getState().articoli.filter(a => a.attivo !== false && !usati.has(String(a.id)));
+}
+
+export function renderAssortimentoGruppo(gruppoId) {
+  const container = document.getElementById("gd-assortimento-content");
+  if (!container) return;
+
+  const pdvList = puntiVenditaDelGruppo(gruppoId);
+  if (!pdvList.length) {
+    container.innerHTML = `<div class="empty-state">Aggiungi prima almeno un punto vendita a questo gruppo per gestirne l'assortimento.</div>`;
+    return;
+  }
+
+  if (!selectedPdvPerGruppo[gruppoId] || !pdvList.some(p => String(p.id) === String(selectedPdvPerGruppo[gruppoId]))) {
+    selectedPdvPerGruppo[gruppoId] = pdvList[0].id;
+  }
+  const currentPdvId = selectedPdvPerGruppo[gruppoId];
+
+  container.innerHTML = `
+    <div class="filter-bar">
+      <select id="gd-as-pdv-select">${pdvList.map(p => `<option value="${p.id}" ${String(p.id) === String(currentPdvId) ? "selected" : ""}>${escapeHtml(p.nome_insegna)}</option>`).join("")}</select>
+      <button class="btn btn-sm" id="gd-as-add">+ Aggiungi articolo</button>
+    </div>
+    <table class="desktop-table">
+      <thead><tr><th>Articolo</th><th>Categoria</th><th>Stato</th><th>Data inizio</th><th>Note</th><th style="text-align:center">Azioni</th></tr></thead>
+      <tbody id="gd-as-table-body"></tbody>
+    </table>`;
+
+  renderAssortimentoPdvTable(currentPdvId);
+
+  document.getElementById("gd-as-pdv-select").addEventListener("change", event => {
+    selectedPdvPerGruppo[gruppoId] = event.target.value;
+    renderAssortimentoPdvTable(event.target.value);
+  });
+  document.getElementById("gd-as-add").addEventListener("click", () => openAssortimentoModal(selectedPdvPerGruppo[gruppoId]));
+}
+
+function renderAssortimentoPdvTable(pdvId) {
+  const tbody = document.getElementById("gd-as-table-body");
+  if (!tbody) return;
+  const rows = getState().assortimenti.filter(r => String(r.punto_vendita_id) === String(pdvId));
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Nessun articolo in assortimento o in proposta per questo punto vendita.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(row => {
+    const articolo = articoloById(row.articolo_id);
+    return `<tr>
+      <td><strong>${escapeHtml(articolo?.descrizione || "—")}</strong></td>
+      <td>${escapeHtml(CATEGORIE_ARTICOLO[articolo?.categoria] || "—")}</td>
+      <td>
+        <select class="as-stato-select" data-as-id="${row.id}" style="font-size:0.75rem;padding:4px 6px;border-radius:6px;border:1px solid var(--border-color)">
+          ${Object.entries(STATO_ASSORTIMENTO).map(([k, v]) => `<option value="${k}" ${row.stato === k ? "selected" : ""}>${v.label}</option>`).join("")}
+        </select>
+      </td>
+      <td>${formatDate(row.data_inizio)}</td>
+      <td>${escapeHtml(row.note || "—")}</td>
+      <td style="text-align:center"><button class="btn btn-red btn-sm" data-as-delete="${row.id}">Elimina</button></td>
+    </tr>`;
+  }).join("");
+
+  tbody.querySelectorAll(".as-stato-select").forEach(el => el.addEventListener("change", () => onChangeStatoAssortimento(el.dataset.asId, el.value)));
+  tbody.querySelectorAll("[data-as-delete]").forEach(el => el.addEventListener("click", () => onDeleteAssortimento(el.dataset.asDelete)));
+}
+
+async function onChangeStatoAssortimento(id, stato) {
+  try {
+    await updateRow("assortimenti", id, { stato });
+    await loadAll();
+    notifyDataChanged();
+    toast("Stato aggiornato", "success");
+  } catch (err) {
+    toastError(err);
+  }
+}
+
+let assortimentoPdvId = null;
+
+function openAssortimentoModal(pdvId) {
+  const pdv = getState().puntiVendita.find(p => String(p.id) === String(pdvId));
+  if (!pdv) return;
+  assortimentoPdvId = pdvId;
+  const disponibili = articoliDisponibiliPerPdv(pdvId);
+  document.getElementById("as-pdv-nome").value = pdv.nome_insegna;
+  document.getElementById("as-articolo").innerHTML = disponibili.length
+    ? disponibili.map(a => `<option value="${a.id}">${escapeHtml(a.descrizione)}</option>`).join("")
+    : `<option value="">Nessun articolo disponibile — aggiungilo prima a catalogo</option>`;
+  document.getElementById("as-stato").value = "proposto";
+  document.getElementById("as-data-inizio").value = "";
+  document.getElementById("as-note").value = "";
+  openModal("assortimentoModal");
+}
+
+async function onSubmitAssortimento(event) {
+  event.preventDefault();
+  const articoloId = document.getElementById("as-articolo").value;
+  if (!articoloId) {
+    toast("Seleziona un articolo.", "error");
+    return;
+  }
+  const payload = {
+    punto_vendita_id: Number(assortimentoPdvId),
+    articolo_id: Number(articoloId),
+    stato: document.getElementById("as-stato").value,
+    data_inizio: document.getElementById("as-data-inizio").value || null,
+    note: document.getElementById("as-note").value.trim() || null,
+  };
+  const submitBtn = event.target.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.disabled = true;
+  try {
+    await insertRow("assortimenti", payload);
+    closeModal("assortimentoModal");
+    await loadAll();
+    notifyDataChanged();
+    toast("Assortimento salvato", "success");
+  } catch (err) {
+    toastError(err);
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
+}
+
+export function initAssortimenti() {
+  document.getElementById("articolo-form").addEventListener("submit", onSubmitArticolo);
+  document.getElementById("assortimento-form").addEventListener("submit", onSubmitAssortimento);
+}

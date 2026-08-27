@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GDO Control Room — Tessaro S.p.A.</title>
+</head>
+<body>
+
+    <div id="login-overlay" class="login-overlay hidden">
+        <div class="login-box">
+            <svg class="brand-mark" viewBox="0 0 40 40" width="48" height="48" xmlns="http://www.w3.org/2000/svg">
+                <path d="M0 18 V6 A6 6 0 0 1 6 0 H12 V18 Z" fill="#c8b99f"/>
+                <path d="M20 18 V6 A6 6 0 0 1 26 0 H32 A6 6 0 0 1 38 6 V18 Z" fill="#f7b033"/>
+                <rect x="0" y="20" width="18" height="18" rx="2" fill="#c8b99f"/>
+                <rect x="20" y="20" width="18" height="18" rx="2" fill="#809b29"/>
+            </svg>
+            <h1>GDO Control Room</h1>
+            <p class="hint">Tessaro S.p.A. — Direzione Commerciale GDO</p>
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="login-email">Email</label>
+                    <input type="email" id="login-email" required autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" required autocomplete="current-password">
+                </div>
+                <button type="submit" class="btn" style="width:100%">Accedi</button>
+                <div id="login-error" class="login-error"></div>
+            </form>
+        </div>
+    </div>
+
+    <div id="app-shell" class="app-shell">
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <svg class="brand-mark" viewBox="0 0 40 40" width="36" height="36" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M0 18 V6 A6 6 0 0 1 6 0 H12 V18 Z" fill="#c8b99f"/>
+                    <path d="M20 18 V6 A6 6 0 0 1 26 0 H32 A6 6 0 0 1 38 6 V18 Z" fill="#f7b033"/>
+                    <rect x="0" y="20" width="18" height="18" rx="2" fill="#c8b99f"/>
+                    <rect x="20" y="20" width="18" height="18" rx="2" fill="#809b29"/>
+                </svg>
+                <div>
+                    <div class="brand-name">Tessaro S.p.A.</div>
+                    <div class="brand-sub">GDO Control Room</div>
+                </div>
+            </div>
+            <nav class="sidebar-nav">
+                <button class="nav-btn active" data-view="dashboard"><span class="icon">◆</span> Dashboard</button>
+                <button class="nav-btn" data-view="gruppi"><span class="icon">▣</span> Gruppi GDO</button>
+                <button class="nav-btn" data-view="punti-vendita"><span class="icon">◈</span> Punti vendita</button>
+                <button class="nav-btn" data-view="agenti"><span class="icon">◉</span> Agenti</button>
+                <button class="nav-btn" data-view="assortimenti"><span class="icon">▤</span> Assortimenti</button>
+                <button class="nav-btn" data-view="statistiche"><span class="icon">▲</span> Statistiche</button>
+                <button class="nav-btn" data-view="import"><span class="icon">⇩</span> Import dati</button>
+            </nav>
+            <div class="sidebar-footer">
+                <div id="header-user" class="header-user"></div>
+                <button id="logout-btn" class="btn btn-ghost btn-sm">Esci</button>
+            </div>
+        </aside>
+
+        <div class="main-area">
+            <header class="topbar">
+                <div class="topbar-row">
+                    <div>
+                        <h1 id="page-title">Dashboard esecutiva</h1>
+                        <div class="subtitle">Sviluppo commerciale GDO — copertura, assortimenti e venduto in tempo reale</div>
+                    </div>
+                </div>
+                <div class="grid-kpi">
+                    <div class="kpi-card">
+                        <div class="kpi-title">Gruppi GDO</div>
+                        <div class="kpi-value" id="kpi-gruppi">0</div>
+                        <div class="kpi-sub" id="kpi-gruppi-sub">0 attivi</div>
+                    </div>
+                    <div class="kpi-card green">
+                        <div class="kpi-title">Punti vendita serviti</div>
+                        <div class="kpi-value" id="kpi-pdv">0 / 0</div>
+                        <div class="kpi-sub" id="kpi-pdv-sub">Copertura 0%</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-title">Fatturato 12 mesi</div>
+                        <div class="kpi-value" id="kpi-fatturato">€ 0,00</div>
+                        <div class="kpi-sub">Da statistiche venduto</div>
+                    </div>
+                    <div class="kpi-card red">
+                        <div class="kpi-title">Gruppi in attenzione</div>
+                        <div class="kpi-value" id="kpi-attenzione">0</div>
+                        <div class="kpi-sub">Stato sospeso</div>
+                    </div>
+                </div>
+            </header>
+
+            <main class="content">
+
+                <!-- DASHBOARD -->
+                <div id="view-dashboard" class="view-section active">
+                    <div class="grid-2">
+                        <div class="card">
+                            <h2>Copertura per gruppo GDO</h2>
+                            <div id="dash-coverage-chart"></div>
+                        </div>
+                        <div class="card">
+                            <h2>Maggiori opportunità di sviluppo</h2>
+                            <p class="hint">Gruppi con più punti vendita ancora non serviti.</p>
+                            <div id="dash-opportunita"></div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h2>Gruppi che richiedono attenzione</h2>
+                        <div id="dash-attenzione"></div>
+                    </div>
+                </div>
+
+                <!-- GRUPPI GDO — LISTA -->
+                <div id="view-gruppi" class="view-section">
+                    <div id="gruppi-list-view">
+                        <div class="actions-bar">
+                            <button class="btn" data-open-modal="gruppoModal">+ Nuovo gruppo GDO</button>
+                        </div>
+                        <div class="card">
+                            <div class="filter-bar">
+                                <input id="gr-search" placeholder="Cerca per nome o area geografica">
+                                <select id="gr-filter-stato">
+                                    <option value="">Tutti gli stati</option>
+                                    <option value="attivo">Attivo</option>
+                                    <option value="target">Target</option>
+                                    <option value="sospeso">Sospeso</option>
+                                </select>
+                            </div>
+                            <table class="desktop-table">
+                                <thead>
+                                    <tr><th>Gruppo</th><th>Area</th><th>Stato</th><th>PdV serviti</th><th>Copertura</th><th>Buyer</th><th style="text-align:center">Azioni</th></tr>
+                                </thead>
+                                <tbody id="gruppi-table-body"></tbody>
+                            </table>
+                            <div id="gruppi-mobile" class="mobile-cards-container"></div>
+                        </div>
+                    </div>
+
+                    <!-- GRUPPO — DETTAGLIO -->
+                    <div id="gruppo-detail-view" style="display:none">
+                        <span class="breadcrumb" id="gruppo-back">← Torna ai gruppi GDO</span>
+                        <div class="card">
+                            <h2>
+                                <span id="gd-nome">—</span>
+                                <span>
+                                    <button class="btn btn-ghost btn-sm" id="gd-edit">Modifica gruppo</button>
+                                    <button class="btn btn-red btn-sm" id="gd-delete">Elimina</button>
+                                </span>
+                            </h2>
+                            <div class="grid-3" id="gd-kpis">
+                                <div class="kpi-card">
+                                    <div class="kpi-title">Punti vendita</div>
+                                    <div class="kpi-value" id="gd-kpi-pdv">0 / 0</div>
+                                    <div class="kpi-sub" id="gd-kpi-pdv-sub">Copertura 0%</div>
+                                </div>
+                                <div class="kpi-card">
+                                    <div class="kpi-title">Stato relazione</div>
+                                    <div class="kpi-value" id="gd-kpi-stato">—</div>
+                                    <div class="kpi-sub" id="gd-kpi-buyer">—</div>
+                                </div>
+                                <div class="kpi-card">
+                                    <div class="kpi-title">Fatturato 12 mesi</div>
+                                    <div class="kpi-value" id="gd-kpi-fatturato">€ 0,00</div>
+                                    <div class="kpi-sub">Da statistiche venduto</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="subtabs">
+                                <button class="subtab-btn active" data-subview="gd-pdv">Punti vendita</button>
+                                <button class="subtab-btn" data-subview="gd-assortimento">Assortimento</button>
+                                <button class="subtab-btn" data-subview="gd-attivita">Attività</button>
+                            </div>
+
+                            <div id="gd-pdv" class="subview active">
+                                <div class="actions-bar">
+                                    <button class="btn btn-sm" id="gd-pdv-new">+ Punto vendita</button>
+                                </div>
+                                <table class="desktop-table">
+                                    <thead><tr><th>Insegna</th><th>Comune</th><th>Stato</th><th>Agente</th><th style="text-align:center">Azioni</th></tr></thead>
+                                    <tbody id="gd-pdv-table-body"></tbody>
+                                </table>
+                                <div id="gd-pdv-mobile" class="mobile-cards-container"></div>
+                            </div>
+
+                            <div id="gd-assortimento" class="subview">
+                                <div id="gd-assortimento-content"></div>
+                            </div>
+
+                            <div id="gd-attivita" class="subview">
+                                <div class="actions-bar">
+                                    <button class="btn btn-sm" id="gd-attivita-new">+ Attività</button>
+                                </div>
+                                <div id="gd-attivita-list"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PUNTI VENDITA (vista trasversale) -->
+                <div id="view-punti-vendita" class="view-section">
+                    <div class="actions-bar">
+                        <button class="btn" id="pv-new">+ Nuovo punto vendita</button>
+                    </div>
+                    <div class="card">
+                        <div class="filter-bar">
+                            <input id="pv-search" placeholder="Cerca insegna o comune">
+                            <select id="pv-filter-gruppo"><option value="">Tutti i gruppi</option></select>
+                            <select id="pv-filter-agente"><option value="">Tutti gli agenti</option></select>
+                            <select id="pv-filter-stato">
+                                <option value="">Tutti gli stati</option>
+                                <option value="servito">Servito</option>
+                                <option value="non_servito">Non servito</option>
+                                <option value="target">Target</option>
+                                <option value="sospeso">Sospeso</option>
+                            </select>
+                        </div>
+                        <table class="desktop-table">
+                            <thead><tr><th>Insegna</th><th>Gruppo</th><th>Comune</th><th>Prov.</th><th>Stato</th><th>Agente</th><th style="text-align:center">Azioni</th></tr></thead>
+                            <tbody id="pv-table-body"></tbody>
+                        </table>
+                        <div id="pv-mobile" class="mobile-cards-container"></div>
+                    </div>
+                </div>
+
+                <!-- AGENTI -->
+                <div id="view-agenti" class="view-section">
+                    <div class="actions-bar">
+                        <button class="btn" data-open-modal="agenteModal">+ Nuovo agente</button>
+                    </div>
+                    <div class="card">
+                        <table class="desktop-table">
+                            <thead><tr><th>Agente</th><th>Zona</th><th>Contatti</th><th>PdV assegnati</th><th>Stato</th><th style="text-align:center">Azioni</th></tr></thead>
+                            <tbody id="agenti-table-body"></tbody>
+                        </table>
+                        <div id="agenti-mobile" class="mobile-cards-container"></div>
+                    </div>
+                </div>
+
+                <!-- ASSORTIMENTI -->
+                <div id="view-assortimenti" class="view-section">
+                    <div id="assortimenti-content"></div>
+                </div>
+
+                <!-- STATISTICHE -->
+                <div id="view-statistiche" class="view-section">
+                    <div id="statistiche-content"></div>
+                </div>
+
+                <!-- IMPORT -->
+                <div id="view-import" class="view-section">
+                    <div id="import-content"></div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- MODAL GRUPPO -->
+    <div id="gruppoModal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 id="gruppo-modal-title">Nuovo gruppo GDO</h3>
+            <form id="gruppo-form">
+                <div class="form-group"><label>Nome gruppo</label><input type="text" id="g-nome" placeholder="Es. Conad Dao Trento" required></div>
+                <div class="flex-row">
+                    <div class="form-group"><label>Area geografica</label><input type="text" id="g-area" placeholder="Es. Trentino Alto Adige"></div>
+                    <div class="form-group"><label>Stato relazione</label>
+                        <select id="g-stato"><option value="attivo">Attivo</option><option value="target">Target</option><option value="sospeso">Sospeso</option></select>
+                    </div>
+                </div>
+                <div class="flex-row">
+                    <div class="form-group"><label>Referente buyer</label><input type="text" id="g-buyer" placeholder="Nome e ruolo"></div>
+                    <div class="form-group"><label>Contatto buyer</label><input type="text" id="g-contatto" placeholder="Email o telefono"></div>
+                </div>
+                <div class="form-group"><label>Note</label><textarea id="g-note" placeholder="Piano d'azione, contesto, accordi in corso..."></textarea></div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+                    <button type="button" class="btn btn-ghost" data-close="gruppoModal">Annulla</button>
+                    <button type="submit" class="btn">Salva</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL PUNTO VENDITA -->
+    <div id="pdvModal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 id="pdv-modal-title">Nuovo punto vendita</h3>
+            <form id="pdv-form">
+                <div class="form-group"><label>Gruppo GDO</label><select id="p-gruppo" required></select></div>
+                <div class="form-group"><label>Nome insegna</label><input type="text" id="p-nome" placeholder="Es. Conad Superstore Trento Nord" required></div>
+                <div class="form-group"><label>Indirizzo</label><input type="text" id="p-indirizzo" placeholder="Via, numero civico"></div>
+                <div class="flex-row">
+                    <div class="form-group"><label>Comune</label><input type="text" id="p-comune"></div>
+                    <div class="form-group"><label>Provincia</label><input type="text" id="p-provincia" maxlength="2" placeholder="Es. TN"></div>
+                </div>
+                <div class="flex-row">
+                    <div class="form-group"><label>Stato</label>
+                        <select id="p-stato">
+                            <option value="non_servito">Non servito</option>
+                            <option value="servito">Servito</option>
+                            <option value="target">Target</option>
+                            <option value="sospeso">Sospeso</option>
+                        </select>
+                    </div>
+                    <div class="form-group"><label>Agente assegnato</label><select id="p-agente"><option value="">Nessuno</option></select></div>
+                </div>
+                <div class="form-group"><label>Data attivazione</label><input type="date" id="p-data-attivazione"></div>
+                <div class="form-group"><label>Note</label><textarea id="p-note"></textarea></div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+                    <button type="button" class="btn btn-ghost" data-close="pdvModal">Annulla</button>
+                    <button type="submit" class="btn">Salva</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL AGENTE -->
+    <div id="agenteModal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 id="agente-modal-title">Nuovo agente</h3>
+            <form id="agente-form">
+                <div class="flex-row">
+                    <div class="form-group"><label>Nome</label><input type="text" id="a-nome" required></div>
+                    <div class="form-group"><label>Cognome</label><input type="text" id="a-cognome" required></div>
+                </div>
+                <div class="form-group"><label>Zona</label><input type="text" id="a-zona" placeholder="Es. Trentino / Alto Adige"></div>
+                <div class="flex-row">
+                    <div class="form-group"><label>Telefono</label><input type="text" id="a-telefono"></div>
+                    <div class="form-group"><label>Email</label><input type="email" id="a-email"></div>
+                </div>
+                <div class="form-group"><label><input type="checkbox" id="a-attivo" checked style="width:auto"> Attivo</label></div>
+                <div class="form-group"><label>Note</label><textarea id="a-note"></textarea></div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+                    <button type="button" class="btn btn-ghost" data-close="agenteModal">Annulla</button>
+                    <button type="submit" class="btn">Salva</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL ATTIVITA -->
+    <div id="attivitaModal" class="modal-overlay">
+        <div class="modal-content">
+            <h3>Nuova attività</h3>
+            <form id="attivita-form">
+                <div class="form-group"><label>Tipo</label>
+                    <select id="at-tipo"><option value="nota">Nota</option><option value="chiamata">Chiamata</option><option value="visita">Visita</option><option value="task">Task</option></select>
+                </div>
+                <div class="form-group"><label>Descrizione</label><textarea id="at-descrizione" required placeholder="Es. Presentare mix categoria formaggi a Trento Nord"></textarea></div>
+                <div class="flex-row">
+                    <div class="form-group"><label>Responsabile</label><input type="text" id="at-responsabile"></div>
+                    <div class="form-group"><label>Scadenza</label><input type="date" id="at-scadenza"></div>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+                    <button type="button" class="btn btn-ghost" data-close="attivitaModal">Annulla</button>
+                    <button type="submit" class="btn">Salva</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL ARTICOLO -->
+    <div id="articoloModal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 id="articolo-modal-title">Nuovo articolo</h3>
+            <form id="articolo-form">
+                <div class="form-group"><label>Descrizione</label><input type="text" id="ar-descrizione" placeholder="Es. Asiago DOP fresco 1/8" required></div>
+                <div class="flex-row">
+                    <div class="form-group"><label>Codice</label><input type="text" id="ar-codice" placeholder="Codice articolo interno"></div>
+                    <div class="form-group"><label>Unità di misura</label><input type="text" id="ar-um" placeholder="Es. Kg, Pz, Cartone"></div>
+                </div>
+                <div class="form-group"><label>Categoria</label>
+                    <select id="ar-categoria">
+                        <option value="formaggi">Formaggi</option>
+                        <option value="salumi">Salumi</option>
+                        <option value="congelato">Congelato</option>
+                        <option value="carne_pesce">Carne e pesce</option>
+                        <option value="scaffale">Prodotti da scaffale</option>
+                    </select>
+                </div>
+                <div class="form-group"><label><input type="checkbox" id="ar-attivo" checked style="width:auto"> Attivo a catalogo</label></div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+                    <button type="button" class="btn btn-ghost" data-close="articoloModal">Annulla</button>
+                    <button type="submit" class="btn">Salva</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL ASSORTIMENTO -->
+    <div id="assortimentoModal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 id="assortimento-modal-title">Aggiungi articolo al punto vendita</h3>
+            <form id="assortimento-form">
+                <div class="form-group"><label>Punto vendita</label><input type="text" id="as-pdv-nome" disabled></div>
+                <div class="form-group"><label>Articolo</label><select id="as-articolo" required></select></div>
+                <div class="flex-row">
+                    <div class="form-group"><label>Stato</label>
+                        <select id="as-stato">
+                            <option value="proposto">Proposto</option>
+                            <option value="in_trattativa">In trattativa</option>
+                            <option value="attivo">Attivo</option>
+                            <option value="rifiutato">Rifiutato</option>
+                            <option value="sospeso">Sospeso</option>
+                        </select>
+                    </div>
+                    <div class="form-group"><label>Data inizio</label><input type="date" id="as-data-inizio"></div>
+                </div>
+                <div class="form-group"><label>Note</label><textarea id="as-note"></textarea></div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+                    <button type="button" class="btn btn-ghost" data-close="assortimentoModal">Annulla</button>
+                    <button type="submit" class="btn">Salva</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL CONFERMA (sostituisce window.confirm, non affidabile in alcuni browser embedded) -->
+    <div id="confirmModal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 id="confirm-title">Conferma</h3>
+            <p id="confirm-message" style="font-size:0.85rem;color:var(--text-muted)"></p>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+                <button type="button" class="btn btn-ghost" id="confirm-cancel">Annulla</button>
+                <button type="button" class="btn btn-red" id="confirm-ok">Conferma</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>
