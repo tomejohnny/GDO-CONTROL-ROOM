@@ -175,11 +175,22 @@
                                 <div class="actions-bar">
                                     <button class="btn btn-sm" id="gd-pdv-new">+ Punto vendita</button>
                                 </div>
+                                <div class="filter-bar">
+                                    <input id="gd-pdv-search" placeholder="Cerca insegna o comune">
+                                    <select id="gd-pdv-filter-stato">
+                                        <option value="">Tutti gli stati</option>
+                                        <option value="servito">Servito</option>
+                                        <option value="non_servito">Non servito</option>
+                                        <option value="target">Target</option>
+                                        <option value="sospeso">Sospeso</option>
+                                    </select>
+                                </div>
                                 <table class="desktop-table">
                                     <thead><tr><th>Insegna</th><th>Comune</th><th>Stato</th><th>Agente</th><th style="text-align:center">Azioni</th></tr></thead>
                                     <tbody id="gd-pdv-table-body"></tbody>
                                 </table>
                                 <div id="gd-pdv-mobile" class="mobile-cards-container"></div>
+                                <div id="gd-pdv-more" style="margin-top:12px;text-align:center"></div>
                             </div>
 
                             <div id="gd-assortimento" class="subview">

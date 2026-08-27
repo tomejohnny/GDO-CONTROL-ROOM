@@ -12,6 +12,8 @@ import { renderAssortimentoGruppo } from "./assortimenti.js";
 const TABLE = "gdo_groups";
 let editingId = null;
 let selectedGruppoId = null;
+const PDV_TOP_N = 30;
+let pdvShowAll = false;
 
 // ---------------------------------------------------------------- LISTA ---
 
@@ -156,6 +158,9 @@ async function onSubmit(event) {
 
 function openDetail(id) {
   selectedGruppoId = id;
+  pdvShowAll = false;
+  document.getElementById("gd-pdv-search").value = "";
+  document.getElementById("gd-pdv-filter-stato").value = "";
   document.getElementById("gruppi-list-view").style.display = "none";
   document.getElementById("gruppo-detail-view").style.display = "block";
   switchSubview("gd-pdv");
@@ -194,14 +199,34 @@ function renderDetail() {
   renderAttivitaSubview();
 }
 
+function pdvSubviewFiltered() {
+  const search = (document.getElementById("gd-pdv-search")?.value || "").trim().toLowerCase();
+  const stato = document.getElementById("gd-pdv-filter-stato")?.value || "";
+  return puntiVenditaDelGruppo(selectedGruppoId).filter(p => {
+    if (search && !`${p.nome_insegna} ${p.comune || ""}`.toLowerCase().includes(search)) return false;
+    if (stato && p.stato !== stato) return false;
+    return true;
+  });
+}
+
 function renderPdvSubview() {
-  const rows = puntiVenditaDelGruppo(selectedGruppoId);
+  const all = pdvSubviewFiltered();
+  const rows = pdvShowAll ? all : all.slice(0, PDV_TOP_N);
   const tbody = document.getElementById("gd-pdv-table-body");
   const mobile = document.getElementById("gd-pdv-mobile");
+  const moreEl = document.getElementById("gd-pdv-more");
   tbody.innerHTML = "";
   mobile.innerHTML = "";
 
-  if (!rows.length) tbody.innerHTML = `<tr><td colspan="5" class="empty-state">Nessun punto vendita censito per questo gruppo.</td></tr>`;
+  if (!all.length) tbody.innerHTML = `<tr><td colspan="5" class="empty-state">Nessun punto vendita trovato.</td></tr>`;
+
+  moreEl.innerHTML = all.length > PDV_TOP_N
+    ? `<button class="btn btn-ghost btn-sm" id="gd-pdv-more-btn">${pdvShowAll ? `Mostra solo le prime ${PDV_TOP_N}` : `Mostra tutti i ${all.length} punti vendita`}</button>`
+    : "";
+  document.getElementById("gd-pdv-more-btn")?.addEventListener("click", () => {
+    pdvShowAll = !pdvShowAll;
+    renderPdvSubview();
+  });
 
   rows.forEach(p => {
     const agente = agenteNome(p.agente_id) || "—";
@@ -351,6 +376,8 @@ export function initGruppi() {
   });
 
   document.getElementById("gd-pdv-new").addEventListener("click", () => openPdvModal({ gruppoId: selectedGruppoId }));
+  document.getElementById("gd-pdv-search").addEventListener("input", renderPdvSubview);
+  document.getElementById("gd-pdv-filter-stato").addEventListener("change", renderPdvSubview);
 
   document.getElementById("gd-attivita-new").addEventListener("click", () => {
     document.getElementById("attivita-form").reset();
