@@ -2,6 +2,12 @@ import { getState, gruppoById, articoloById } from "../lib/store.js";
 import { escapeHtml, money, number, percent, formatMonth, CATEGORIE_ARTICOLO } from "../lib/format.js";
 import { lineChart, barChartVertical } from "../lib/charts.js";
 
+const TOP_N = 15;
+const sectionState = {
+  articolo: { collapsed: false, showAll: false },
+  pdv: { collapsed: false, showAll: false },
+};
+
 function monthKey(dateStr) {
   const d = new Date(dateStr);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -88,6 +94,35 @@ function aggregateByPuntoVendita(rows) {
   return [...groups.values()].sort((a, b) => b.valore_euro - a.valore_euro);
 }
 
+function renderSection(key, tbodyId, items, rowFn, colspan) {
+  const state = sectionState[key];
+  const body = document.getElementById(`st-${key}-body-wrap`);
+  const toggleBtn = document.getElementById(`st-toggle-${key}`);
+  body.style.display = state.collapsed ? "none" : "block";
+  toggleBtn.textContent = state.collapsed ? "▸ Espandi" : "▾ Comprimi";
+  if (state.collapsed) return;
+
+  const tbody = document.getElementById(tbodyId);
+  if (!items.length) {
+    tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state">Nessun dato di venduto per i filtri selezionati.</td></tr>`;
+    document.getElementById(`st-${key}-more`).innerHTML = "";
+    return;
+  }
+  const visible = state.showAll ? items : items.slice(0, TOP_N);
+  tbody.innerHTML = visible.map(rowFn).join("");
+
+  const moreEl = document.getElementById(`st-${key}-more`);
+  if (items.length > TOP_N) {
+    moreEl.innerHTML = `<button class="btn btn-ghost btn-sm" id="st-more-${key}-btn">${state.showAll ? `Mostra solo le prime ${TOP_N}` : `Mostra tutte le ${items.length} righe`}</button>`;
+    document.getElementById(`st-more-${key}-btn`).addEventListener("click", () => {
+      state.showAll = !state.showAll;
+      renderContent();
+    });
+  } else {
+    moreEl.innerHTML = "";
+  }
+}
+
 function renderContent() {
   const rows = filteredVendite();
 
@@ -138,9 +173,7 @@ function renderContent() {
     ? `Venduto per articolo — ${pdvSelezionato.nome_insegna}`
     : "Venduto per gruppo e articolo";
 
-  const tbody = document.getElementById("st-table-body");
-  const aggregated = aggregateByArticolo(rows);
-  tbody.innerHTML = aggregated.length ? aggregated.map(g => {
+  renderSection("articolo", "st-table-body", aggregateByArticolo(rows), g => {
     const gruppo = gruppoById(g.gruppo_id);
     const art = articoloById(g.articolo_id);
     const marginePct = g.valore_euro ? (g.margine_valore / g.valore_euro) * 100 : 0;
@@ -155,11 +188,9 @@ function renderContent() {
       <td style="text-align:right" class="amount">${money(g.margine_valore)}</td>
       <td style="text-align:right">${percent(marginePct)}</td>
     </tr>`;
-  }).join("") : `<tr><td colspan="9" class="empty-state">Nessuna riga di venduto trovata. Usa "Import dati" per caricare le statistiche.</td></tr>`;
+  }, 9);
 
-  const tbodyPdv = document.getElementById("st-table-pdv-body");
-  const aggregatedPdv = aggregateByPuntoVendita(rows);
-  tbodyPdv.innerHTML = aggregatedPdv.length ? aggregatedPdv.map(g => {
+  renderSection("pdv", "st-table-pdv-body", aggregateByPuntoVendita(rows), g => {
     const gruppo = gruppoById(g.gruppo_id);
     const pdv = g.punto_vendita_id != null ? getState().puntiVendita.find(p => String(p.id) === String(g.punto_vendita_id)) : null;
     const marginePct = g.valore_euro ? (g.margine_valore / g.valore_euro) * 100 : 0;
@@ -173,7 +204,7 @@ function renderContent() {
       <td style="text-align:right" class="amount">${money(g.margine_valore)}</td>
       <td style="text-align:right">${percent(marginePct)}</td>
     </tr>`;
-  }).join("") : `<tr><td colspan="8" class="empty-state">Nessuna riga di venduto trovata.</td></tr>`;
+  }, 8);
 }
 
 export function render() {
@@ -237,33 +268,54 @@ export function render() {
       </div>
     </div>
     <div class="card">
-      <h2 id="st-table-title">Venduto per gruppo e articolo</h2>
-      <p class="hint">Aggregato su tutto il periodo filtrato. Seleziona un gruppo e poi un punto vendita specifico per l'analisi di un singolo cliente.</p>
-      <div style="overflow-x:auto">
-        <table class="desktop-table">
-          <thead><tr>
-            <th>Gruppo</th><th>Articolo</th><th>Categoria</th><th style="text-align:right">PdV</th>
-            <th style="text-align:right">Quantità</th><th style="text-align:right">Valore</th>
-            <th style="text-align:right">Costo</th><th style="text-align:right">Margine €</th><th style="text-align:right">Margine %</th>
-          </tr></thead>
-          <tbody id="st-table-body"></tbody>
-        </table>
+      <h2>
+        <span id="st-table-title">Venduto per gruppo e articolo</span>
+        <button class="btn btn-ghost btn-sm" id="st-toggle-articolo">▾ Comprimi</button>
+      </h2>
+      <div id="st-articolo-body-wrap">
+        <p class="hint">Aggregato su tutto il periodo filtrato. Seleziona un gruppo e poi un punto vendita specifico per l'analisi di un singolo cliente.</p>
+        <div style="overflow-x:auto">
+          <table class="desktop-table">
+            <thead><tr>
+              <th>Gruppo</th><th>Articolo</th><th>Categoria</th><th style="text-align:right">PdV</th>
+              <th style="text-align:right">Quantità</th><th style="text-align:right">Valore</th>
+              <th style="text-align:right">Costo</th><th style="text-align:right">Margine €</th><th style="text-align:right">Margine %</th>
+            </tr></thead>
+            <tbody id="st-table-body"></tbody>
+          </table>
+        </div>
+        <div id="st-articolo-more" style="margin-top:12px;text-align:center"></div>
       </div>
     </div>
     <div class="card">
-      <h2>Fatturato per punto vendita</h2>
-      <p class="hint">Chi fattura di più, a parità di filtri applicati sopra.</p>
-      <div style="overflow-x:auto">
-        <table class="desktop-table">
-          <thead><tr>
-            <th>Gruppo</th><th>Punto vendita</th><th style="text-align:right">Articoli</th>
-            <th style="text-align:right">Quantità</th><th style="text-align:right">Valore</th>
-            <th style="text-align:right">Costo</th><th style="text-align:right">Margine €</th><th style="text-align:right">Margine %</th>
-          </tr></thead>
-          <tbody id="st-table-pdv-body"></tbody>
-        </table>
+      <h2>
+        <span>Fatturato per punto vendita</span>
+        <button class="btn btn-ghost btn-sm" id="st-toggle-pdv">▾ Comprimi</button>
+      </h2>
+      <div id="st-pdv-body-wrap">
+        <p class="hint">Chi fattura di più, a parità di filtri applicati sopra.</p>
+        <div style="overflow-x:auto">
+          <table class="desktop-table">
+            <thead><tr>
+              <th>Gruppo</th><th>Punto vendita</th><th style="text-align:right">Articoli</th>
+              <th style="text-align:right">Quantità</th><th style="text-align:right">Valore</th>
+              <th style="text-align:right">Costo</th><th style="text-align:right">Margine €</th><th style="text-align:right">Margine %</th>
+            </tr></thead>
+            <tbody id="st-table-pdv-body"></tbody>
+          </table>
+        </div>
+        <div id="st-pdv-more" style="margin-top:12px;text-align:center"></div>
       </div>
     </div>`;
+
+  document.getElementById("st-toggle-articolo").addEventListener("click", () => {
+    sectionState.articolo.collapsed = !sectionState.articolo.collapsed;
+    renderContent();
+  });
+  document.getElementById("st-toggle-pdv").addEventListener("click", () => {
+    sectionState.pdv.collapsed = !sectionState.pdv.collapsed;
+    renderContent();
+  });
 
   document.getElementById("st-filter-gruppo").addEventListener("change", () => {
     populatePdvFilter();
