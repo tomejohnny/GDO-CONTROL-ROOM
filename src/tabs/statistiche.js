@@ -70,6 +70,24 @@ function aggregateByArticolo(rows) {
   return [...groups.values()].sort((a, b) => b.valore_euro - a.valore_euro);
 }
 
+// Stessa aggregazione ma per punto vendita: quali clienti fatturano di piu'.
+function aggregateByPuntoVendita(rows) {
+  const groups = new Map();
+  rows.forEach(v => {
+    const key = `${v.gruppo_id}::${v.punto_vendita_id}`;
+    if (!groups.has(key)) {
+      groups.set(key, { gruppo_id: v.gruppo_id, punto_vendita_id: v.punto_vendita_id, quantita: 0, valore_euro: 0, costo_acquisto: 0, margine_valore: 0, articoli: new Set() });
+    }
+    const g = groups.get(key);
+    g.quantita += Number(v.quantita || 0);
+    g.valore_euro += Number(v.valore_euro || 0);
+    g.costo_acquisto += Number(v.costo_acquisto || 0);
+    g.margine_valore += Number(v.margine_valore || 0);
+    if (v.articolo_id != null) g.articoli.add(v.articolo_id);
+  });
+  return [...groups.values()].sort((a, b) => b.valore_euro - a.valore_euro);
+}
+
 function renderContent() {
   const rows = filteredVendite();
 
@@ -138,6 +156,24 @@ function renderContent() {
       <td style="text-align:right">${percent(marginePct)}</td>
     </tr>`;
   }).join("") : `<tr><td colspan="9" class="empty-state">Nessuna riga di venduto trovata. Usa "Import dati" per caricare le statistiche.</td></tr>`;
+
+  const tbodyPdv = document.getElementById("st-table-pdv-body");
+  const aggregatedPdv = aggregateByPuntoVendita(rows);
+  tbodyPdv.innerHTML = aggregatedPdv.length ? aggregatedPdv.map(g => {
+    const gruppo = gruppoById(g.gruppo_id);
+    const pdv = g.punto_vendita_id != null ? getState().puntiVendita.find(p => String(p.id) === String(g.punto_vendita_id)) : null;
+    const marginePct = g.valore_euro ? (g.margine_valore / g.valore_euro) * 100 : 0;
+    return `<tr>
+      <td>${escapeHtml(gruppo?.nome || "—")}</td>
+      <td>${escapeHtml(pdv?.nome_insegna || "Aggregato gruppo")}</td>
+      <td style="text-align:right">${g.articoli.size || "—"}</td>
+      <td style="text-align:right">${number(g.quantita)}</td>
+      <td style="text-align:right" class="amount">${money(g.valore_euro)}</td>
+      <td style="text-align:right" class="amount">${money(g.costo_acquisto)}</td>
+      <td style="text-align:right" class="amount">${money(g.margine_valore)}</td>
+      <td style="text-align:right">${percent(marginePct)}</td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="8" class="empty-state">Nessuna riga di venduto trovata.</td></tr>`;
 }
 
 export function render() {
@@ -211,6 +247,20 @@ export function render() {
             <th style="text-align:right">Costo</th><th style="text-align:right">Margine €</th><th style="text-align:right">Margine %</th>
           </tr></thead>
           <tbody id="st-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Fatturato per punto vendita</h2>
+      <p class="hint">Chi fattura di più, a parità di filtri applicati sopra.</p>
+      <div style="overflow-x:auto">
+        <table class="desktop-table">
+          <thead><tr>
+            <th>Gruppo</th><th>Punto vendita</th><th style="text-align:right">Articoli</th>
+            <th style="text-align:right">Quantità</th><th style="text-align:right">Valore</th>
+            <th style="text-align:right">Costo</th><th style="text-align:right">Margine €</th><th style="text-align:right">Margine %</th>
+          </tr></thead>
+          <tbody id="st-table-pdv-body"></tbody>
         </table>
       </div>
     </div>`;
