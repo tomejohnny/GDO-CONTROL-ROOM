@@ -10,6 +10,7 @@ function monthKey(dateStr) {
 function filters() {
   return {
     gruppo: document.getElementById("st-filter-gruppo")?.value || "",
+    puntoVendita: document.getElementById("st-filter-pdv")?.value || "",
     categoria: document.getElementById("st-filter-categoria")?.value || "",
     da: document.getElementById("st-filter-da")?.value || "",
     a: document.getElementById("st-filter-a")?.value || "",
@@ -20,6 +21,7 @@ function filteredVendite() {
   const f = filters();
   return getState().vendite.filter(v => {
     if (f.gruppo && String(v.gruppo_id) !== f.gruppo) return false;
+    if (f.puntoVendita && String(v.punto_vendita_id) !== f.puntoVendita) return false;
     if (f.categoria) {
       const art = articoloById(v.articolo_id);
       if (!art || art.categoria !== f.categoria) return false;
@@ -28,6 +30,44 @@ function filteredVendite() {
     if (f.a && v.periodo > f.a) return false;
     return true;
   });
+}
+
+function populatePdvFilter() {
+  const sel = document.getElementById("st-filter-pdv");
+  if (!sel) return;
+  const gruppoId = document.getElementById("st-filter-gruppo")?.value || "";
+  const current = sel.value;
+  if (!gruppoId) {
+    sel.innerHTML = `<option value="">Seleziona un gruppo per filtrare il punto vendita</option>`;
+    sel.disabled = true;
+    return;
+  }
+  const pdvList = getState().puntiVendita
+    .filter(p => String(p.gruppo_id) === gruppoId)
+    .sort((a, b) => a.nome_insegna.localeCompare(b.nome_insegna));
+  sel.disabled = false;
+  sel.innerHTML = `<option value="">Tutti i punti vendita del gruppo</option>` + pdvList.map(p => `<option value="${p.id}">${escapeHtml(p.nome_insegna)}</option>`).join("");
+  if (pdvList.some(p => String(p.id) === current)) sel.value = current;
+}
+
+// Aggrega per gruppo+articolo (o solo articolo se il filtro e' gia' su un
+// singolo punto vendita): l'elenco riga-per-riga di 1000+ vendite non e'
+// utile di per se', quanto/quanto-vale per articolo si'.
+function aggregateByArticolo(rows) {
+  const groups = new Map();
+  rows.forEach(v => {
+    const key = `${v.gruppo_id}::${v.articolo_id}`;
+    if (!groups.has(key)) {
+      groups.set(key, { gruppo_id: v.gruppo_id, articolo_id: v.articolo_id, quantita: 0, valore_euro: 0, costo_acquisto: 0, margine_valore: 0, puntiVendita: new Set() });
+    }
+    const g = groups.get(key);
+    g.quantita += Number(v.quantita || 0);
+    g.valore_euro += Number(v.valore_euro || 0);
+    g.costo_acquisto += Number(v.costo_acquisto || 0);
+    g.margine_valore += Number(v.margine_valore || 0);
+    if (v.punto_vendita_id != null) g.puntiVendita.add(v.punto_vendita_id);
+  });
+  return [...groups.values()].sort((a, b) => b.valore_euro - a.valore_euro);
 }
 
 function renderContent() {
@@ -72,28 +112,32 @@ function renderContent() {
     ? barChartVertical({ labels: catLabels, series: [{ label: "Fatturato", values: catLabels.map(c => byCategoria.get(c)), color: "var(--accent-blue)" }] })
     : `<div class="empty-state">Nessun dato per categoria.</div>`;
 
-  // Tabella dettaglio (ultime 100 righe per periodo desc)
+  // Tabella: aggregata per gruppo+articolo (quanto vale un articolo nel suo
+  // complesso, non riga per riga per punto vendita).
+  const f = filters();
+  const pdvSelezionato = f.puntoVendita ? getState().puntiVendita.find(p => String(p.id) === f.puntoVendita) : null;
+  document.getElementById("st-table-title").textContent = pdvSelezionato
+    ? `Venduto per articolo — ${pdvSelezionato.nome_insegna}`
+    : "Venduto per gruppo e articolo";
+
   const tbody = document.getElementById("st-table-body");
-  const detail = [...rows].sort((a, b) => (a.periodo < b.periodo ? 1 : -1)).slice(0, 100);
-  tbody.innerHTML = detail.length ? detail.map(v => {
-    const gruppo = gruppoById(v.gruppo_id);
-    const pdv = getState().puntiVendita.find(p => String(p.id) === String(v.punto_vendita_id));
-    const art = articoloById(v.articolo_id);
+  const aggregated = aggregateByArticolo(rows);
+  tbody.innerHTML = aggregated.length ? aggregated.map(g => {
+    const gruppo = gruppoById(g.gruppo_id);
+    const art = articoloById(g.articolo_id);
+    const marginePct = g.valore_euro ? (g.margine_valore / g.valore_euro) * 100 : 0;
     return `<tr>
-      <td>${formatMonth(v.periodo)}</td>
       <td>${escapeHtml(gruppo?.nome || "—")}</td>
-      <td>${escapeHtml(pdv?.nome_insegna || "Aggregato gruppo")}</td>
       <td>${escapeHtml(art?.descrizione || "—")}</td>
-      <td style="text-align:right">${number(v.quantita)}</td>
-      <td style="text-align:right" class="amount">${money(v.valore_euro)}</td>
-      <td style="text-align:right" class="amount">${v.costo_acquisto != null ? money(v.costo_acquisto) : "—"}</td>
-      <td style="text-align:right" class="amount">${v.margine_valore != null ? money(v.margine_valore) : "—"}</td>
-      <td style="text-align:right">${v.margine_percentuale != null ? percent(v.margine_percentuale * (v.margine_percentuale <= 1 ? 100 : 1)) : "—"}</td>
+      <td class="text-muted">${escapeHtml(art ? CATEGORIE_ARTICOLO[art.categoria] || art.categoria : "—")}</td>
+      <td style="text-align:right">${g.puntiVendita.size || "—"}</td>
+      <td style="text-align:right">${number(g.quantita)}</td>
+      <td style="text-align:right" class="amount">${money(g.valore_euro)}</td>
+      <td style="text-align:right" class="amount">${money(g.costo_acquisto)}</td>
+      <td style="text-align:right" class="amount">${money(g.margine_valore)}</td>
+      <td style="text-align:right">${percent(marginePct)}</td>
     </tr>`;
   }).join("") : `<tr><td colspan="9" class="empty-state">Nessuna riga di venduto trovata. Usa "Import dati" per caricare le statistiche.</td></tr>`;
-  if (rows.length > 100) {
-    tbody.innerHTML += `<tr><td colspan="6" class="text-muted" style="text-align:center;font-size:0.72rem">Mostrate le 100 righe più recenti su ${rows.length} totali. Affina i filtri per restringere.</td></tr>`;
-  }
 }
 
 export function render() {
@@ -106,6 +150,7 @@ export function render() {
     <div class="card">
       <div class="filter-bar">
         <select id="st-filter-gruppo"><option value="">Tutti i gruppi</option>${gruppi.map(g => `<option value="${g.id}">${escapeHtml(g.nome)}</option>`).join("")}</select>
+        <select id="st-filter-pdv" disabled><option value="">Seleziona un gruppo per filtrare il punto vendita</option></select>
         <select id="st-filter-categoria">
           <option value="">Tutte le categorie</option>
           ${Object.entries(CATEGORIE_ARTICOLO).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}
@@ -156,11 +201,12 @@ export function render() {
       </div>
     </div>
     <div class="card">
-      <h2>Dettaglio venduto</h2>
+      <h2 id="st-table-title">Venduto per gruppo e articolo</h2>
+      <p class="hint">Aggregato su tutto il periodo filtrato. Seleziona un gruppo e poi un punto vendita specifico per l'analisi di un singolo cliente.</p>
       <div style="overflow-x:auto">
         <table class="desktop-table">
           <thead><tr>
-            <th>Periodo</th><th>Gruppo</th><th>Punto vendita</th><th>Articolo</th>
+            <th>Gruppo</th><th>Articolo</th><th>Categoria</th><th style="text-align:right">PdV</th>
             <th style="text-align:right">Quantità</th><th style="text-align:right">Valore</th>
             <th style="text-align:right">Costo</th><th style="text-align:right">Margine €</th><th style="text-align:right">Margine %</th>
           </tr></thead>
@@ -169,8 +215,13 @@ export function render() {
       </div>
     </div>`;
 
-  ["st-filter-gruppo", "st-filter-categoria", "st-filter-da", "st-filter-a"].forEach(id => {
+  document.getElementById("st-filter-gruppo").addEventListener("change", () => {
+    populatePdvFilter();
+    renderContent();
+  });
+  ["st-filter-pdv", "st-filter-categoria", "st-filter-da", "st-filter-a"].forEach(id => {
     document.getElementById(id).addEventListener("change", renderContent);
   });
+  populatePdvFilter();
   renderContent();
 }
