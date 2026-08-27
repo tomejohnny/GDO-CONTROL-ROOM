@@ -110,7 +110,8 @@ function buildContext() {
   const articoliByCodice = new Map(state.articoli.filter(a => a.codice).map(a => [normalizeKey(a.codice), a.id]));
   const pdvByKey = new Map(state.puntiVendita.map(p => [`${p.gruppo_id}::${normalizeKey(p.nome_insegna)}`, p.id]));
   const assortByKey = new Map(state.assortimenti.map(r => [`${r.punto_vendita_id}::${r.articolo_id}`, r.id]));
-  return { gruppiByName, agentiByFull, agentiByCognome, articoliByDesc, articoliByCodice, pdvByKey, assortByKey };
+  const venditeByKey = new Map(state.vendite.map(v => [`${v.gruppo_id}::${v.punto_vendita_id}::${v.articolo_id}::${v.periodo}`, v.id]));
+  return { gruppiByName, agentiByFull, agentiByCognome, articoliByDesc, articoliByCodice, pdvByKey, assortByKey, venditeByKey };
 }
 
 async function resolveGruppoId(ctx, nomeGruppo, warnings) {
@@ -362,7 +363,7 @@ export const TARGETS = {
       const pdvId = pdvNome ? await resolvePdvId(ctx, gruppoId, pdvNome, warnings) : null;
       const articoloDesc = s(row.articolo);
       const articoloId = articoloDesc ? await resolveArticoloId(ctx, articoloDesc, s(row.codice_articolo), "", warnings) : null;
-      await insertRow("vendite", {
+      const payload = {
         gruppo_id: gruppoId,
         punto_vendita_id: pdvId,
         articolo_id: articoloId,
@@ -376,7 +377,17 @@ export const TARGETS = {
         prezzo_medio_vendita: num(row.prezzo_medio_vendita),
         quantita_omaggio: num(row.quantita_omaggio),
         import_batch_id: importBatchId,
-      });
+      };
+      // Chiave naturale gruppo+PdV+articolo+periodo: rieseguire lo stesso
+      // import (es. dopo un'interruzione a meta') aggiorna le righe gia'
+      // presenti invece di duplicarle.
+      const key = `${gruppoId}::${pdvId}::${articoloId}::${periodo}`;
+      const existingId = ctx.venditeByKey.get(key);
+      if (existingId) await updateRow("vendite", existingId, payload);
+      else {
+        const created = await insertRow("vendite", payload);
+        ctx.venditeByKey.set(key, created.id);
+      }
       return { ok: true, warnings };
     },
   },
