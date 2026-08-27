@@ -70,7 +70,21 @@ function s(value) {
 
 function num(value) {
   if (value === "" || value == null) return null;
-  const n = Number(String(value).replace(",", "."));
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+
+  // Ripulisce simboli di valuta, spazi e altri caratteri non numerici (es.
+  // "€ 11.535,50" o "11,535.50 EUR"), poi capisce quale tra "," e "." e' il
+  // separatore decimale in base a quale compare per ultimo nella stringa.
+  let s = String(value).trim().replace(/[^\d,.\-]/g, "");
+  if (!s) return null;
+  const lastComma = s.lastIndexOf(",");
+  const lastDot = s.lastIndexOf(".");
+  if (lastComma !== -1 && lastDot !== -1) {
+    s = lastComma > lastDot ? s.replace(/\./g, "").replace(",", ".") : s.replace(/,/g, "");
+  } else if (lastComma !== -1) {
+    s = s.replace(",", ".");
+  }
+  const n = Number(s);
   return Number.isFinite(n) ? n : null;
 }
 
