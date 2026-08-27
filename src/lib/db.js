@@ -20,12 +20,26 @@ async function logAudit(action, table, recordId, details) {
   }
 }
 
+const PAGE_SIZE = 1000;
+
+// Supabase/PostgREST limita ogni richiesta a 1000 righe di default: senza
+// paginare, una tabella che cresce oltre quel numero (es. vendite importate)
+// viene troncata in silenzio. "id" come ordinamento secondario garantisce un
+// ordine stabile tra una pagina e l'altra.
 export async function listRows(table, { orderBy, ascending = true } = {}) {
-  let query = supabase.from(table).select("*");
-  if (orderBy) query = query.order(orderBy, { ascending });
-  const { data, error } = await query;
-  if (error) throw error;
-  return data || [];
+  const rows = [];
+  let from = 0;
+  while (true) {
+    let query = supabase.from(table).select("*").range(from, from + PAGE_SIZE - 1);
+    if (orderBy) query = query.order(orderBy, { ascending });
+    query = query.order("id", { ascending: true });
+    const { data, error } = await query;
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return rows;
 }
 
 export async function insertRow(table, payload) {
