@@ -1,10 +1,11 @@
 import { getState, loadAll, gruppoById, articoloById, puntiVenditaDelGruppo } from "../lib/store.js";
 import { insertRow, updateRow, deleteRow } from "../lib/db.js";
-import { escapeHtml, statoBadge, STATO_ASSORTIMENTO, CATEGORIE_ARTICOLO, formatDate } from "../lib/format.js";
+import { escapeHtml, statoBadge, STATO_ASSORTIMENTO, CATEGORIE_ARTICOLO, formatDate, money } from "../lib/format.js";
 import { openModal, closeModal } from "../lib/modal.js";
 import { toast, toastError } from "../lib/ui.js";
 import { notifyDataChanged } from "../lib/bus.js";
 import { confirmDialog } from "../lib/confirm.js";
+import { assortimentiSenzaVendite, venditeSenzaAssortimento } from "../lib/analytics.js";
 
 let editingArticoloId = null;
 let selectedPdvPerGruppo = {};
@@ -132,6 +133,52 @@ function renderGlobalTable() {
   tbody.querySelectorAll("[data-as-delete]").forEach(el => el.addEventListener("click", () => onDeleteAssortimento(el.dataset.asDelete)));
 }
 
+function renderDisallineamenti() {
+  const { assortimenti, vendite, puntiVendita } = getState();
+  const pdvOf = id => puntiVendita.find(p => String(p.id) === String(id));
+
+  const senzaVendite = assortimentiSenzaVendite(assortimenti, vendite);
+  const elA = document.getElementById("as-senza-vendite");
+  elA.innerHTML = senzaVendite.length ? `
+    <table class="desktop-table">
+      <thead><tr><th>Gruppo</th><th>Punto vendita</th><th>Articolo</th></tr></thead>
+      <tbody>
+        ${senzaVendite.slice(0, 20).map(a => {
+          const pdv = pdvOf(a.punto_vendita_id);
+          const articolo = articoloById(a.articolo_id);
+          return `<tr>
+            <td>${escapeHtml(pdv ? gruppoById(pdv.gruppo_id)?.nome || "—" : "—")}</td>
+            <td>${escapeHtml(pdv?.nome_insegna || "—")}</td>
+            <td>${escapeHtml(articolo?.descrizione || "—")}</td>
+          </tr>`;
+        }).join("")}
+      </tbody>
+    </table>
+    ${senzaVendite.length > 20 ? `<p class="hint" style="margin-top:8px;margin-bottom:0">e altri ${senzaVendite.length - 20}.</p>` : ""}
+  ` : `<div class="empty-state">Nessun disallineamento: tutti gli assortimenti attivi hanno vendite registrate.</div>`;
+
+  const senzaAssortimento = venditeSenzaAssortimento(vendite, assortimenti);
+  const elB = document.getElementById("as-senza-assortimento");
+  elB.innerHTML = senzaAssortimento.length ? `
+    <table class="desktop-table">
+      <thead><tr><th>Gruppo</th><th>Punto vendita</th><th>Articolo</th><th style="text-align:right">Valore</th></tr></thead>
+      <tbody>
+        ${senzaAssortimento.slice(0, 20).map(v => {
+          const pdv = pdvOf(v.punto_vendita_id);
+          const articolo = articoloById(v.articolo_id);
+          return `<tr>
+            <td>${escapeHtml(pdv ? gruppoById(pdv.gruppo_id)?.nome || "—" : "—")}</td>
+            <td>${escapeHtml(pdv?.nome_insegna || "—")}</td>
+            <td>${escapeHtml(articolo?.descrizione || "—")}</td>
+            <td style="text-align:right" class="amount">${money(v.valore_euro)}</td>
+          </tr>`;
+        }).join("")}
+      </tbody>
+    </table>
+    ${senzaAssortimento.length > 20 ? `<p class="hint" style="margin-top:8px;margin-bottom:0">e altri ${senzaAssortimento.length - 20}.</p>` : ""}
+  ` : `<div class="empty-state">Nessun venduto fuori dall'assortimento tracciato.</div>`;
+}
+
 async function onDeleteAssortimento(id) {
   if (!(await confirmDialog("Rimuovere questo assortimento?"))) return;
   try {
@@ -179,6 +226,18 @@ export function render() {
         <thead><tr><th>Gruppo</th><th>Punto vendita</th><th>Articolo</th><th>Stato</th><th>Data inizio</th><th style="text-align:center">Azioni</th></tr></thead>
         <tbody id="as-g-table-body"></tbody>
       </table>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <h2>Assortimento senza venduto</h2>
+        <p class="hint">Articoli "attivo" per un punto vendita, ma senza nessuna vendita registrata — possibile disallineamento.</p>
+        <div id="as-senza-vendite"></div>
+      </div>
+      <div class="card">
+        <h2>Venduto non tracciato in assortimento</h2>
+        <p class="hint">Vendite reali su combinazioni punto vendita + articolo che non risultano in nessun assortimento.</p>
+        <div id="as-senza-assortimento"></div>
+      </div>
     </div>`;
 
   wireArticoloActions(container);
@@ -188,6 +247,7 @@ export function render() {
     document.getElementById(id).addEventListener("change", renderGlobalTable);
   });
   renderGlobalTable();
+  renderDisallineamenti();
 }
 
 // ==================================================== VISTA PER GRUPPO ===
