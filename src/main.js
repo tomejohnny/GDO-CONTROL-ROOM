@@ -48,12 +48,25 @@ export function switchToView(view) {
   document.getElementById("view-" + view)?.classList.add("active");
   document.querySelector(`.nav-btn[data-view="${view}"]`)?.classList.add("active");
   document.getElementById("page-title").textContent = PAGE_TITLES[view] || "";
+  closeMobileMenu();
+}
+
+function openMobileMenu() {
+  document.getElementById("sidebar").classList.add("open");
+  document.getElementById("sidebar-backdrop").classList.add("visible");
+}
+
+function closeMobileMenu() {
+  document.getElementById("sidebar").classList.remove("open");
+  document.getElementById("sidebar-backdrop").classList.remove("visible");
 }
 
 function wireNav() {
   document.querySelectorAll(".nav-btn[data-view]").forEach(btn => {
     btn.addEventListener("click", () => switchToView(btn.dataset.view));
   });
+  document.getElementById("mobile-menu-btn").addEventListener("click", openMobileMenu);
+  document.getElementById("sidebar-backdrop").addEventListener("click", closeMobileMenu);
 }
 
 function wireLogout() {

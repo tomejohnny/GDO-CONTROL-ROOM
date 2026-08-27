@@ -33,7 +33,8 @@
     </div>
 
     <div id="app-shell" class="app-shell">
-        <aside class="sidebar">
+        <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+        <aside class="sidebar" id="sidebar">
             <div class="sidebar-brand">
                 <div>
                     <div class="brand-name">Tessaro S.p.A.</div>
@@ -59,9 +60,12 @@
         <div class="main-area">
             <header class="topbar">
                 <div class="topbar-row">
-                    <div>
-                        <h1 id="page-title">Dashboard esecutiva</h1>
-                        <div class="subtitle">Sviluppo commerciale GDO — copertura, assortimenti e venduto in tempo reale</div>
+                    <div style="display:flex;align-items:center;gap:10px">
+                        <button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Apri menu">☰</button>
+                        <div>
+                            <h1 id="page-title">Dashboard esecutiva</h1>
+                            <div class="subtitle">Sviluppo commerciale GDO — copertura, assortimenti e venduto in tempo reale</div>
+                        </div>
                     </div>
                 </div>
                 <div class="grid-kpi">
