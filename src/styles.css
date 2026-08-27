@@ -72,14 +72,14 @@ h1, h2, .brand-name, .login-box h1 { font-family: "Cormorant Garamond", Georgia,
 .view-section.active { display: block; }
 
 /* ---------- KPI ---------- */
-.grid-kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.grid-kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 12px; margin-bottom: 18px; }
 .kpi-card { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px 16px; position: relative; overflow: hidden; box-shadow: var(--shadow-card); }
 .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: var(--accent-blue); }
 .kpi-card.green::before { background: var(--accent-green); }
 .kpi-card.amber::before { background: var(--accent-amber); }
 .kpi-card.red::before { background: var(--accent-red); }
 .kpi-title { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; font-weight: 600; margin-bottom: 6px; }
-.kpi-value { font-size: 1.35rem; font-weight: 700; margin-bottom: 2px; }
+.kpi-value { font-size: 1.2rem; font-weight: 700; margin-bottom: 2px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .kpi-sub { font-size: 0.7rem; color: var(--text-muted); }
 
 /* ---------- Cards / layout ---------- */
