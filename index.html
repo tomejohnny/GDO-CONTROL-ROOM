@@ -338,6 +338,37 @@
         </div>
     </div>
 
+    <!-- MODAL DETTAGLIO AGENTE -->
+    <div id="agenteDetailModal" class="modal-overlay">
+        <div class="modal-content" style="max-width:680px">
+            <h3 id="agente-detail-title">Agente</h3>
+            <div class="grid-kpi" style="margin-bottom:14px">
+                <div class="kpi-card">
+                    <div class="kpi-title">Fatturato 12 mesi</div>
+                    <div class="kpi-value" id="ad-kpi-fatturato">€ 0,00</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-title">Punti vendita gestiti</div>
+                    <div class="kpi-value" id="ad-kpi-pdv">0</div>
+                </div>
+                <div class="kpi-card green">
+                    <div class="kpi-title">Margine % medio</div>
+                    <div class="kpi-value" id="ad-kpi-margine">0,0%</div>
+                </div>
+            </div>
+            <p class="hint" style="margin-bottom:8px">Fatturato per punto vendita, ultimi 12 mesi, decrescente.</p>
+            <div style="overflow-x:auto;max-height:360px;overflow-y:auto">
+                <table class="desktop-table">
+                    <thead><tr><th>Punto vendita</th><th>Gruppo</th><th style="text-align:right">Fatturato</th><th style="text-align:right">Margine %</th></tr></thead>
+                    <tbody id="ad-table-body"></tbody>
+                </table>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+                <button type="button" class="btn btn-ghost" data-close="agenteDetailModal">Chiudi</button>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL ATTIVITA -->
     <div id="attivitaModal" class="modal-overlay">
         <div class="modal-content">

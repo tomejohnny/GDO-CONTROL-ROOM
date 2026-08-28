@@ -3,6 +3,29 @@
 
 export const SOGLIA_MARGINE_BASSO = 15; // %
 
+// Per un agente: fatturato ultimi 12 mesi di ciascun punto vendita che
+// gestisce, e il totale — per vedere subito il valore commerciale in carico
+// a ciascun agente e come si distribuisce tra i suoi punti vendita.
+export function fatturatoPerAgente(agenteId, vendite, puntiVendita) {
+  const oggi = new Date();
+  const soglia = new Date(oggi.getFullYear(), oggi.getMonth() - 11, 1);
+  const venditeRecenti = vendite.filter(v => v.periodo && new Date(v.periodo) >= soglia);
+
+  const pdvGestiti = puntiVendita.filter(p => String(p.agente_id) === String(agenteId));
+  const righe = pdvGestiti
+    .map(p => {
+      const venditePdv = venditeRecenti.filter(v => String(v.punto_vendita_id) === String(p.id));
+      const valore_euro = venditePdv.reduce((s, v) => s + Number(v.valore_euro || 0), 0);
+      const margine_valore = venditePdv.reduce((s, v) => s + Number(v.margine_valore || 0), 0);
+      return { punto_vendita_id: p.id, gruppo_id: p.gruppo_id, valore_euro, margine_valore, marginePct: valore_euro ? (margine_valore / valore_euro) * 100 : 0 };
+    })
+    .sort((a, b) => b.valore_euro - a.valore_euro);
+
+  const fatturatoTotale = righe.reduce((s, r) => s + r.valore_euro, 0);
+  const margineTotale = righe.reduce((s, r) => s + r.margine_valore, 0);
+  return { righe, fatturatoTotale, margineTotale, margineTotalePct: fatturatoTotale ? (margineTotale / fatturatoTotale) * 100 : 0 };
+}
+
 export function topGruppiPerFatturato(vendite, n = 5) {
   const byGruppo = new Map();
   vendite.forEach(v => {

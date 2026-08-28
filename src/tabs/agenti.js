@@ -1,10 +1,11 @@
-import { getState, loadAll } from "../lib/store.js";
+import { getState, loadAll, gruppoById } from "../lib/store.js";
 import { insertRow, updateRow, deleteRow } from "../lib/db.js";
-import { escapeHtml } from "../lib/format.js";
+import { escapeHtml, money, percent } from "../lib/format.js";
 import { openModal, closeModal } from "../lib/modal.js";
 import { toast, toastError } from "../lib/ui.js";
 import { notifyDataChanged } from "../lib/bus.js";
 import { confirmDialog } from "../lib/confirm.js";
+import { fatturatoPerAgente } from "../lib/analytics.js";
 
 const TABLE = "agenti";
 let editingId = null;
@@ -30,7 +31,7 @@ export function render() {
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td><strong>${escapeHtml(a.nome)} ${escapeHtml(a.cognome)}</strong></td>
+      <td><span class="row-link" data-detail="${a.id}"><strong>${escapeHtml(a.nome)} ${escapeHtml(a.cognome)}</strong></span></td>
       <td>${escapeHtml(a.zona || "—")}</td>
       <td>${escapeHtml(contatti)}</td>
       <td>${pdvCount(a.id)}</td>
@@ -45,7 +46,7 @@ export function render() {
     card.className = "m-card";
     card.innerHTML = `
       <div class="m-card-header">
-        <span class="m-card-title">${escapeHtml(a.nome)} ${escapeHtml(a.cognome)}</span>
+        <span class="row-link m-card-title" data-detail="${a.id}">${escapeHtml(a.nome)} ${escapeHtml(a.cognome)}</span>
         ${statoBadge}
       </div>
       <div style="font-size:0.75rem;color:var(--text-muted)">${escapeHtml(a.zona || "—")} · ${escapeHtml(contatti)}</div>
@@ -62,7 +63,34 @@ export function render() {
   [tbody, mobile].forEach(container => {
     container.querySelectorAll("[data-edit]").forEach(el => el.addEventListener("click", () => onEdit(el.dataset.edit)));
     container.querySelectorAll("[data-delete]").forEach(el => el.addEventListener("click", () => onDelete(el.dataset.delete)));
+    container.querySelectorAll("[data-detail]").forEach(el => el.addEventListener("click", () => openAgenteDetail(el.dataset.detail)));
   });
+}
+
+function openAgenteDetail(id) {
+  const a = getState().agenti.find(r => String(r.id) === String(id));
+  if (!a) return;
+  const { vendite, puntiVendita } = getState();
+  const { righe, fatturatoTotale, margineTotalePct } = fatturatoPerAgente(id, vendite, puntiVendita);
+
+  document.getElementById("agente-detail-title").textContent = `${a.nome} ${a.cognome}`;
+  document.getElementById("ad-kpi-fatturato").textContent = money(fatturatoTotale);
+  document.getElementById("ad-kpi-pdv").textContent = righe.length;
+  document.getElementById("ad-kpi-margine").textContent = percent(margineTotalePct);
+
+  const tbody = document.getElementById("ad-table-body");
+  tbody.innerHTML = righe.length ? righe.map(r => {
+    const pdv = puntiVendita.find(p => String(p.id) === String(r.punto_vendita_id));
+    const gruppo = gruppoById(r.gruppo_id);
+    return `<tr>
+      <td>${escapeHtml(pdv?.nome_insegna || "—")}</td>
+      <td>${escapeHtml(gruppo?.nome || "—")}</td>
+      <td style="text-align:right" class="amount">${money(r.valore_euro)}</td>
+      <td style="text-align:right">${r.valore_euro ? percent(r.marginePct) : "—"}</td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="4" class="empty-state">Nessun punto vendita assegnato a questo agente.</td></tr>`;
+
+  openModal("agenteDetailModal");
 }
 
 function resetForm() {
