@@ -570,26 +570,46 @@ function articoliDisponibiliPerGruppo(gruppoId) {
   return getState().articoli.filter(a => a.attivo !== false && !usati.has(String(a.id)));
 }
 
+let activeGdAssortSubtab = "gd-as-tab-lista";
+
 export function renderAssortimentoGruppo(gruppoId) {
   const container = document.getElementById("gd-assortimento-content");
   if (!container) return;
 
   container.innerHTML = `
-    <div class="filter-bar">
-      <button class="btn btn-sm" id="gd-as-add">+ Aggiungi articolo</button>
+    <div class="subtabs-nested">
+      <button class="subtab-btn-nested ${activeGdAssortSubtab === "gd-as-tab-lista" ? "active" : ""}" data-subview="gd-as-tab-lista">Assortimento</button>
+      <button class="subtab-btn-nested ${activeGdAssortSubtab === "gd-as-tab-copertura" ? "active" : ""}" data-subview="gd-as-tab-copertura">Copertura punti vendita</button>
     </div>
-    <table class="desktop-table">
-      <thead><tr><th>Articolo</th><th>Codice</th><th>Categoria</th><th>Stato</th><th>Data inizio</th><th>Note</th><th style="text-align:center">Azioni</th></tr></thead>
-      <tbody id="gd-as-table-body"></tbody>
-    </table>
-    <h3 style="margin-top:20px;font-size:0.95rem">Copertura sui punti vendita</h3>
-    <p class="hint">Per ogni articolo attivo in assortimento, quali punti vendita del gruppo lo acquistano davvero (in base al venduto importato) e quali no.</p>
-    <div id="gd-as-copertura"></div>`;
+
+    <div id="gd-as-tab-lista" class="subview-nested ${activeGdAssortSubtab === "gd-as-tab-lista" ? "active" : ""}">
+      <div class="filter-bar">
+        <button class="btn btn-sm" id="gd-as-add">+ Aggiungi articolo</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="desktop-table">
+          <thead><tr><th>Articolo</th><th>Codice</th><th>Categoria</th><th>Stato</th><th>Data inizio</th><th>Note</th><th style="text-align:center">Azioni</th></tr></thead>
+          <tbody id="gd-as-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="gd-as-tab-copertura" class="subview-nested ${activeGdAssortSubtab === "gd-as-tab-copertura" ? "active" : ""}">
+      <p class="hint">Per ogni articolo attivo in assortimento, quali punti vendita del gruppo lo acquistano davvero (in base al venduto importato) e quali no. Ordinato per copertura decrescente.</p>
+      <div id="gd-as-copertura"></div>
+    </div>`;
 
   renderAssortimentoGruppoTable(gruppoId);
   renderCoperturaPdv(gruppoId);
 
   document.getElementById("gd-as-add").addEventListener("click", () => openAssortimentoModal(gruppoId));
+  container.querySelectorAll(".subtab-btn-nested").forEach(btn => {
+    btn.addEventListener("click", () => {
+      activeGdAssortSubtab = btn.dataset.subview;
+      container.querySelectorAll(".subtab-btn-nested").forEach(b => b.classList.toggle("active", b === btn));
+      container.querySelectorAll(".subview-nested").forEach(v => v.classList.toggle("active", v.id === btn.dataset.subview));
+    });
+  });
 }
 
 function renderAssortimentoGruppoTable(gruppoId, tbodyId = "gd-as-table-body") {
