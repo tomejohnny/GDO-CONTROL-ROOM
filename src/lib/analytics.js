@@ -83,3 +83,39 @@ export function coperturaAssortimentoPerPdv(gruppoId, assortimenti, vendite, pun
       };
     });
 }
+
+// Articoli attivi nell'assortimento di 2 o più gruppi: per ognuno, quanto
+// vende (e a che margine) ciascun gruppo che lo tiene — il confronto diretto
+// "stesso articolo, chi lo valorizza meglio" tra clienti diversi.
+export function articoliComuniTraGruppi(assortimenti, vendite) {
+  const gruppiByArticolo = new Map();
+  assortimenti.forEach(a => {
+    if (a.stato !== "attivo" || a.articolo_id == null || a.gruppo_id == null) return;
+    if (!gruppiByArticolo.has(a.articolo_id)) gruppiByArticolo.set(a.articolo_id, new Set());
+    gruppiByArticolo.get(a.articolo_id).add(a.gruppo_id);
+  });
+
+  const venditeByKey = new Map();
+  vendite.forEach(v => {
+    if (v.articolo_id == null || v.gruppo_id == null) return;
+    const key = `${v.articolo_id}::${v.gruppo_id}`;
+    if (!venditeByKey.has(key)) venditeByKey.set(key, { gruppo_id: v.gruppo_id, valore_euro: 0, quantita: 0, margine_valore: 0 });
+    const g = venditeByKey.get(key);
+    g.valore_euro += Number(v.valore_euro || 0);
+    g.quantita += Number(v.quantita || 0);
+    g.margine_valore += Number(v.margine_valore || 0);
+  });
+
+  const result = [];
+  gruppiByArticolo.forEach((gruppoIds, articoloId) => {
+    if (gruppoIds.size < 2) return;
+    const gruppi = [...gruppoIds].map(gruppoId => {
+      const v = venditeByKey.get(`${articoloId}::${gruppoId}`) || { gruppo_id: gruppoId, valore_euro: 0, quantita: 0, margine_valore: 0 };
+      return { ...v, marginePct: v.valore_euro ? (v.margine_valore / v.valore_euro) * 100 : 0 };
+    }).sort((a, b) => b.valore_euro - a.valore_euro);
+    const valoreTotale = gruppi.reduce((s, g) => s + g.valore_euro, 0);
+    result.push({ articolo_id: articoloId, gruppi, valoreTotale });
+  });
+
+  return result.sort((a, b) => b.gruppi.length - a.gruppi.length || b.valoreTotale - a.valoreTotale);
+}

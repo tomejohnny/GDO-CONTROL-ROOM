@@ -2,11 +2,13 @@ import { getState, gruppoById, articoloById } from "../lib/store.js";
 import { escapeHtml, money, number, percent, formatMonth, CATEGORIE_ARTICOLO } from "../lib/format.js";
 import { lineChart, barChartVertical } from "../lib/charts.js";
 import { downloadCsv } from "../lib/export.js";
+import { articoliComuniTraGruppi } from "../lib/analytics.js";
 
 const TOP_N = 15;
 const sectionState = {
   articolo: { collapsed: false, showAll: false },
   pdv: { collapsed: false, showAll: false },
+  comuni: { collapsed: true, showAll: false },
 };
 let lastAggregatedArticolo = [];
 let lastAggregatedPdv = [];
@@ -53,6 +55,21 @@ function filteredVendite() {
   return getState().vendite.filter(v => {
     if (f.gruppo && String(v.gruppo_id) !== f.gruppo) return false;
     if (f.puntoVendita && String(v.punto_vendita_id) !== f.puntoVendita) return false;
+    if (f.categoria) {
+      const art = articoloById(v.articolo_id);
+      if (!art || art.categoria !== f.categoria) return false;
+    }
+    if (f.da && v.periodo < f.da) return false;
+    if (f.a && v.periodo > f.a) return false;
+    return true;
+  });
+}
+
+// Come filteredVendite() ma ignora il filtro gruppo/punto vendita: il
+// confronto tra gruppi non ha senso se lo si limita a un solo gruppo.
+function filteredVenditeIgnorandoGruppo() {
+  const f = filters();
+  return getState().vendite.filter(v => {
     if (f.categoria) {
       const art = articoloById(v.articolo_id);
       if (!art || art.categoria !== f.categoria) return false;
@@ -148,6 +165,57 @@ function renderSection(key, tbodyId, items, rowFn, colspan) {
   }
 }
 
+function renderComuniSection(items) {
+  const state = sectionState.comuni;
+  const body = document.getElementById("st-comuni-body-wrap");
+  const toggleBtn = document.getElementById("st-toggle-comuni");
+  body.style.display = state.collapsed ? "none" : "block";
+  toggleBtn.textContent = state.collapsed ? "▸ Espandi" : "▾ Comprimi";
+  if (state.collapsed) return;
+
+  const listEl = document.getElementById("st-comuni-list");
+  if (!items.length) {
+    listEl.innerHTML = `<div class="empty-state">Nessun articolo è ancora in assortimento attivo per più di un gruppo.</div>`;
+    document.getElementById("st-comuni-more").innerHTML = "";
+    return;
+  }
+  const visible = state.showAll ? items : items.slice(0, TOP_N);
+  listEl.innerHTML = visible.map(item => {
+    const art = articoloById(item.articolo_id);
+    return `<details style="margin-bottom:8px;border:1px solid var(--border-color);border-radius:8px;padding:8px 12px">
+      <summary style="cursor:pointer;font-size:0.85rem">
+        <strong>${escapeHtml(art?.descrizione || "—")}</strong>
+        — in assortimento presso <strong>${item.gruppi.length}</strong> gruppi, fatturato totale ${money(item.valoreTotale)}
+      </summary>
+      <div style="overflow-x:auto;margin-top:10px">
+        <table class="desktop-table">
+          <thead><tr><th>Gruppo</th><th style="text-align:right">Quantità</th><th style="text-align:right">Valore</th><th style="text-align:right">Margine €</th><th style="text-align:right">Margine %</th></tr></thead>
+          <tbody>
+            ${item.gruppi.map(g => `<tr>
+              <td>${escapeHtml(gruppoById(g.gruppo_id)?.nome || "—")}</td>
+              <td style="text-align:right">${number(g.quantita)}</td>
+              <td style="text-align:right" class="amount">${money(g.valore_euro)}</td>
+              <td style="text-align:right" class="amount">${money(g.margine_valore)}</td>
+              <td style="text-align:right">${g.valore_euro ? percent(g.marginePct) : "—"}</td>
+            </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+    </details>`;
+  }).join("");
+
+  const moreEl = document.getElementById("st-comuni-more");
+  if (items.length > TOP_N) {
+    moreEl.innerHTML = `<button class="btn btn-ghost btn-sm" id="st-more-comuni-btn">${state.showAll ? `Mostra solo i primi ${TOP_N}` : `Mostra tutti i ${items.length} articoli`}</button>`;
+    document.getElementById("st-more-comuni-btn").addEventListener("click", () => {
+      state.showAll = !state.showAll;
+      renderContent();
+    });
+  } else {
+    moreEl.innerHTML = "";
+  }
+}
+
 function renderContent() {
   const rows = filteredVendite();
 
@@ -233,6 +301,8 @@ function renderContent() {
       <td style="text-align:right">${percent(marginePct)}</td>
     </tr>`;
   }, 8);
+
+  renderComuniSection(articoliComuniTraGruppi(getState().assortimenti, filteredVenditeIgnorandoGruppo()));
 }
 
 export function render() {
@@ -340,6 +410,17 @@ export function render() {
         </div>
         <div id="st-pdv-more" style="margin-top:12px;text-align:center"></div>
       </div>
+    </div>
+    <div class="card">
+      <h2>
+        <span>Confronto tra gruppi sugli articoli in comune</span>
+        <button class="btn btn-ghost btn-sm" id="st-toggle-comuni">▸ Espandi</button>
+      </h2>
+      <div id="st-comuni-body-wrap">
+        <p class="hint">Articoli attivi nell'assortimento di più gruppi: chi li vende di più e a che margine, sullo stesso periodo/categoria filtrati sopra (il filtro gruppo/punto vendita non si applica qui, altrimenti il confronto non avrebbe senso).</p>
+        <div id="st-comuni-list"></div>
+        <div id="st-comuni-more" style="margin-top:12px;text-align:center"></div>
+      </div>
     </div>`;
 
   document.getElementById("st-export-articolo").addEventListener("click", exportArticoloCsv);
@@ -351,6 +432,10 @@ export function render() {
   });
   document.getElementById("st-toggle-pdv").addEventListener("click", () => {
     sectionState.pdv.collapsed = !sectionState.pdv.collapsed;
+    renderContent();
+  });
+  document.getElementById("st-toggle-comuni").addEventListener("click", () => {
+    sectionState.comuni.collapsed = !sectionState.comuni.collapsed;
     renderContent();
   });
 
