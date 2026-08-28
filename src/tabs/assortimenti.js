@@ -238,15 +238,21 @@ function globalFilters() {
 
 function globalFilteredRows() {
   const f = globalFilters();
-  return getState().assortimenti.filter(row => {
-    const articolo = articoloById(row.articolo_id);
-    if (f.gruppo && String(row.gruppo_id) !== f.gruppo) return false;
-    if (f.stato && row.stato !== f.stato) return false;
-    if (f.categoria && articolo?.categoria !== f.categoria) return false;
-    const gruppo = gruppoById(row.gruppo_id);
-    if (f.search && !`${articolo?.descrizione || ""} ${gruppo?.nome || ""}`.toLowerCase().includes(f.search)) return false;
-    return true;
-  });
+  return getState().assortimenti
+    .filter(row => {
+      const articolo = articoloById(row.articolo_id);
+      if (f.gruppo && String(row.gruppo_id) !== f.gruppo) return false;
+      if (f.stato && row.stato !== f.stato) return false;
+      if (f.categoria && articolo?.categoria !== f.categoria) return false;
+      const gruppo = gruppoById(row.gruppo_id);
+      if (f.search && !`${articolo?.descrizione || ""} ${gruppo?.nome || ""}`.toLowerCase().includes(f.search)) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const gruppoCmp = (gruppoById(a.gruppo_id)?.nome || "").localeCompare(gruppoById(b.gruppo_id)?.nome || "");
+      if (gruppoCmp) return gruppoCmp;
+      return (articoloById(a.articolo_id)?.descrizione || "").localeCompare(articoloById(b.articolo_id)?.descrizione || "");
+    });
 }
 
 function renderGlobalTable() {
@@ -615,7 +621,9 @@ export function renderAssortimentoGruppo(gruppoId) {
 function renderAssortimentoGruppoTable(gruppoId, tbodyId = "gd-as-table-body") {
   const tbody = document.getElementById(tbodyId);
   if (!tbody) return;
-  const rows = getState().assortimenti.filter(r => String(r.gruppo_id) === String(gruppoId));
+  const rows = getState().assortimenti
+    .filter(r => String(r.gruppo_id) === String(gruppoId))
+    .sort((a, b) => (articoloById(a.articolo_id)?.descrizione || "").localeCompare(articoloById(b.articolo_id)?.descrizione || ""));
 
   if (!rows.length) {
     tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Nessun articolo in assortimento o in proposta per questo gruppo.</td></tr>`;
