@@ -25,12 +25,14 @@ let parsedHeaders = [];
 let parsedRows = [];
 let parsedSheets = {}; // { sheetName: rows[] }
 let sheetNames = [];
+let currentSheetName = "";
 let multiSheetMode = false;
 let sheetGruppoNames = {}; // { sheetName: nome gruppo da usare, di default = sheetName }
 let currentFilename = "";
 let savedMapping = {};
 let savedFixed = {};
 let savedFfill = {};
+let applyAllPdvGruppo = false; // assortimenti: applica a tutti i PdV del gruppo fisso
 let mappedRows = [];
 let lastResult = null;
 let fileError = null;
@@ -41,11 +43,13 @@ function resetWizard() {
   parsedRows = [];
   parsedSheets = {};
   sheetNames = [];
+  currentSheetName = "";
   multiSheetMode = false;
   currentFilename = "";
   savedMapping = {};
   savedFixed = {};
   savedFfill = {};
+  applyAllPdvGruppo = false;
   mappedRows = [];
   lastResult = null;
   fileError = null;
@@ -175,12 +179,14 @@ async function handleFile(file) {
       render();
       return;
     }
+    currentSheetName = sheetNames[0];
     parsedHeaders = Object.keys(rows[0]);
     parsedRows = rows;
     currentFilename = file.name;
     savedMapping = {};
     savedFixed = {};
     savedFfill = {};
+    applyAllPdvGruppo = false;
     sheetNames.forEach(name => { sheetGruppoNames[name] = name; });
     multiSheetMode = sheetNames.length > 1;
     step = "mapping";
@@ -244,6 +250,15 @@ function renderMapping() {
                 </div>`).join("")}
             </div>` : ""}
         </div>` : ""}
+      ${sheetNames.length > 1 && !multiSheetMode ? `
+        <div class="calculator-box" style="margin-bottom:14px">
+          <label style="font-size:0.8rem;color:var(--text-main);display:flex;align-items:center;gap:8px">
+            Foglio da usare:
+            <select id="imp-sheet-picker">
+              ${sheetNames.map(name => `<option value="${escapeHtml(name)}" ${name === currentSheetName ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}
+            </select>
+          </label>
+        </div>` : ""}
       <div style="overflow-x:auto">
         <table class="mapping-table">
           <thead><tr><th>Campo destinazione</th><th>Colonna nel file</th></tr></thead>
@@ -278,6 +293,21 @@ function renderMapping() {
                         <input type="date" data-fixed-field="${f.key}" value="${escapeHtml(fixedValue)}">
                       </div>
                       <div>${columnSelectHtml}</div>
+                    </div>
+                  </td>
+                </tr>`;
+              }
+
+              if (f.key === "punto_vendita" && currentTarget === "assortimenti") {
+                return `<tr>
+                  <td>${escapeHtml(f.label)}${f.required ? " <span class=\"text-red\">*</span>" : ""}</td>
+                  <td>
+                    <div style="display:flex;flex-direction:column;gap:6px">
+                      <label style="font-size:0.72rem;color:var(--text-main);display:flex;align-items:center;gap:6px">
+                        <input type="checkbox" id="imp-all-pdv-gruppo" style="width:auto" ${applyAllPdvGruppo ? "checked" : ""}>
+                        Applica a tutti i punti vendita del gruppo (serve un Gruppo GDO fisso qui sopra)
+                      </label>
+                      <div style="${applyAllPdvGruppo ? "opacity:.4;pointer-events:none" : ""}">${columnSelectHtml}</div>
                     </div>
                   </td>
                 </tr>`;
@@ -320,6 +350,21 @@ function renderMapping() {
     renderMapping();
   });
 
+  document.getElementById("imp-sheet-picker")?.addEventListener("change", event => {
+    currentSheetName = event.target.value;
+    parsedRows = parsedSheets[currentSheetName];
+    parsedHeaders = Object.keys(parsedRows[0] || {});
+    savedMapping = {};
+    savedFixed = {};
+    savedFfill = {};
+    renderMapping();
+  });
+
+  document.getElementById("imp-all-pdv-gruppo")?.addEventListener("change", event => {
+    applyAllPdvGruppo = event.target.checked;
+    renderMapping();
+  });
+
   document.querySelectorAll("[data-sheet-gruppo]").forEach(el => {
     el.addEventListener("input", () => {
       sheetGruppoNames[el.dataset.sheetGruppo] = el.value.trim() || el.dataset.sheetGruppo;
@@ -343,8 +388,13 @@ function renderMapping() {
     document.querySelectorAll("[data-ffill-field]").forEach(el => { ffill[el.dataset.ffillField] = el.checked; });
 
     const multiSheet = multiSheetMode && hasGruppoField && sheetNames.length > 1;
+    if (applyAllPdvGruppo && !fixed.gruppo) {
+      toast("Per applicare a tutti i punti vendita del gruppo, scegli prima un Gruppo GDO fisso.", "error");
+      return;
+    }
     const missingRequired = target.fields.filter(f => {
       if (f.key === "gruppo" && multiSheet) return false;
+      if (f.key === "punto_vendita" && applyAllPdvGruppo) return false;
       return f.required && !mapping[f.key] && !fixed[f.key];
     });
     if (missingRequired.length) {
@@ -360,6 +410,16 @@ function renderMapping() {
       mappedRows = sheetNames.flatMap(name => buildMappedRowsForSheet(parsedSheets[name], target, mapping, fixed, ffill, sheetGruppoNames[name] || name));
     } else {
       mappedRows = buildMappedRowsForSheet(parsedRows, target, mapping, fixed, ffill, null);
+    }
+
+    if (applyAllPdvGruppo && fixed.gruppo) {
+      const gruppo = getState().gruppi.find(g => g.nome === fixed.gruppo);
+      const pdvList = gruppo ? getState().puntiVendita.filter(p => String(p.gruppo_id) === String(gruppo.id)) : [];
+      if (!pdvList.length) {
+        toast(`Il gruppo "${fixed.gruppo}" non ha ancora punti vendita censiti.`, "error");
+        return;
+      }
+      mappedRows = mappedRows.flatMap(row => pdvList.map(p => ({ ...row, punto_vendita: p.nome_insegna })));
     }
 
     step = "preview";
