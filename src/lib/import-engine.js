@@ -139,7 +139,7 @@ function buildContext() {
   // indirizzo per distinguere le sedi fisiche reali.
   const pdvByKeyDetailed = new Map(state.puntiVendita.map(p => [`${p.gruppo_id}::${normalizeKey(p.nome_insegna)}::${normalizeKey(p.comune)}::${normalizeKey(p.indirizzo)}`, p.id]));
   const pdvStato = new Map(state.puntiVendita.map(p => [p.id, p.stato]));
-  const assortByKey = new Map(state.assortimenti.map(r => [`${r.punto_vendita_id}::${r.articolo_id}`, r.id]));
+  const assortByKey = new Map(state.assortimenti.map(r => [`${r.gruppo_id}::${r.articolo_id}`, r.id]));
   const venditeByKey = new Map(state.vendite.map(v => [`${v.gruppo_id}::${v.punto_vendita_id}::${v.articolo_id}::${v.periodo}`, v.id]));
   return { gruppiByName, agentiByFull, agentiByCognome, articoliByDesc, articoliByCodice, pdvByKey, pdvByKeyDetailed, pdvStato, assortByKey, venditeByKey };
 }
@@ -370,7 +370,6 @@ export const TARGETS = {
     table: "assortimenti",
     fields: [
       { key: "gruppo", label: "Gruppo GDO", required: true },
-      { key: "punto_vendita", label: "Punto vendita", required: true },
       { key: "articolo", label: "Articolo", required: true },
       { key: "codice_articolo", label: "Codice articolo (se disponibile, match più preciso)" },
       { key: "categoria", label: "Categoria articolo (se nuovo)" },
@@ -380,23 +379,20 @@ export const TARGETS = {
     ],
     async importRow(row, ctx) {
       const gruppoNome = s(row.gruppo);
-      const pdvNome = s(row.punto_vendita);
       const articoloDesc = s(row.articolo);
-      if (!gruppoNome || !pdvNome || !articoloDesc) return { ok: false, error: "gruppo, punto vendita o articolo mancante" };
-      if (isSubtotalLabel(pdvNome)) return { ok: false, error: `riga di riepilogo/totale esclusa ("${pdvNome}" non è un punto vendita reale)` };
+      if (!gruppoNome || !articoloDesc) return { ok: false, error: "gruppo o articolo mancante" };
       const warnings = [];
       const gruppoId = await resolveGruppoId(ctx, gruppoNome, warnings);
-      const pdvId = await resolvePdvId(ctx, gruppoId, pdvNome, warnings);
       const categoriaHint = normalizeKey(row.categoria) ? s(row.categoria).toLowerCase().replace(/\s+/g, "_") : "";
       const articoloId = await resolveArticoloId(ctx, articoloDesc, s(row.codice_articolo), categoriaHint, warnings);
       const payload = {
-        punto_vendita_id: pdvId,
+        gruppo_id: gruppoId,
         articolo_id: articoloId,
         stato: normStato(row.stato, ["attivo", "proposto", "in_trattativa", "rifiutato", "sospeso"], "proposto"),
         data_inizio: parseDateLoose(row.data_inizio),
         note: s(row.note) || null,
       };
-      const key = `${pdvId}::${articoloId}`;
+      const key = `${gruppoId}::${articoloId}`;
       const existingId = ctx.assortByKey.get(key);
       if (existingId) await updateRow("assortimenti", existingId, payload);
       else {

@@ -77,17 +77,17 @@ create table if not exists public.articoli (
 -- ---------------------------------------------------------------------------
 create table if not exists public.assortimenti (
   id bigint generated always as identity primary key,
-  punto_vendita_id bigint not null references public.punti_vendita(id) on delete cascade,
+  gruppo_id bigint not null references public.gdo_groups(id) on delete cascade,
   articolo_id bigint not null references public.articoli(id) on delete cascade,
   stato text not null default 'proposto' check (stato in ('attivo', 'proposto', 'in_trattativa', 'rifiutato', 'sospeso')),
   data_inizio date,
   note text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (punto_vendita_id, articolo_id)
+  unique (gruppo_id, articolo_id)
 );
 
-create index if not exists idx_assortimenti_pdv on public.assortimenti(punto_vendita_id);
+create index if not exists idx_assortimenti_gruppo on public.assortimenti(gruppo_id);
 create index if not exists idx_assortimenti_articolo on public.assortimenti(articolo_id);
 
 -- ---------------------------------------------------------------------------

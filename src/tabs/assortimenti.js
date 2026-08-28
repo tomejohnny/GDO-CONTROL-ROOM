@@ -1,14 +1,13 @@
-import { getState, loadAll, gruppoById, articoloById, puntiVenditaDelGruppo } from "../lib/store.js";
+import { getState, loadAll, gruppoById, articoloById } from "../lib/store.js";
 import { insertRow, updateRow, deleteRow } from "../lib/db.js";
 import { escapeHtml, statoBadge, STATO_ASSORTIMENTO, CATEGORIE_ARTICOLO, formatDate, money } from "../lib/format.js";
 import { openModal, closeModal } from "../lib/modal.js";
 import { toast, toastError } from "../lib/ui.js";
 import { notifyDataChanged } from "../lib/bus.js";
 import { confirmDialog } from "../lib/confirm.js";
-import { assortimentiSenzaVendite, venditeSenzaAssortimento } from "../lib/analytics.js";
+import { assortimentiSenzaVendite, venditeSenzaAssortimento, coperturaAssortimentoPerPdv } from "../lib/analytics.js";
 
 let editingArticoloId = null;
-let selectedPdvPerGruppo = {};
 
 // ============================================================= CATALOGO ===
 
@@ -95,13 +94,12 @@ function globalFilters() {
 
 function globalFilteredRows() {
   const f = globalFilters();
-  const { puntiVendita } = getState();
   return getState().assortimenti.filter(row => {
-    const pdv = puntiVendita.find(p => String(p.id) === String(row.punto_vendita_id));
     const articolo = articoloById(row.articolo_id);
-    if (f.gruppo && String(pdv?.gruppo_id) !== f.gruppo) return false;
+    if (f.gruppo && String(row.gruppo_id) !== f.gruppo) return false;
     if (f.stato && row.stato !== f.stato) return false;
-    if (f.search && !`${articolo?.descrizione || ""} ${pdv?.nome_insegna || ""}`.toLowerCase().includes(f.search)) return false;
+    const gruppo = gruppoById(row.gruppo_id);
+    if (f.search && !`${articolo?.descrizione || ""} ${gruppo?.nome || ""}`.toLowerCase().includes(f.search)) return false;
     return true;
   });
 }
@@ -112,17 +110,15 @@ function renderGlobalTable() {
   const rows = globalFilteredRows();
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Nessun assortimento trovato con questi filtri.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="empty-state">Nessun assortimento trovato con questi filtri.</td></tr>`;
     return;
   }
 
   tbody.innerHTML = rows.map(row => {
-    const pdv = getState().puntiVendita.find(p => String(p.id) === String(row.punto_vendita_id));
-    const gruppo = pdv ? gruppoById(pdv.gruppo_id) : null;
+    const gruppo = gruppoById(row.gruppo_id);
     const articolo = articoloById(row.articolo_id);
     return `<tr>
       <td>${escapeHtml(gruppo?.nome || "—")}</td>
-      <td>${escapeHtml(pdv?.nome_insegna || "—")}</td>
       <td>${escapeHtml(articolo?.descrizione || "—")}</td>
       <td>${statoBadge(STATO_ASSORTIMENTO, row.stato)}</td>
       <td>${formatDate(row.data_inizio)}</td>
@@ -134,21 +130,18 @@ function renderGlobalTable() {
 }
 
 function renderDisallineamenti() {
-  const { assortimenti, vendite, puntiVendita } = getState();
-  const pdvOf = id => puntiVendita.find(p => String(p.id) === String(id));
+  const { assortimenti, vendite } = getState();
 
   const senzaVendite = assortimentiSenzaVendite(assortimenti, vendite);
   const elA = document.getElementById("as-senza-vendite");
   elA.innerHTML = senzaVendite.length ? `
     <table class="desktop-table">
-      <thead><tr><th>Gruppo</th><th>Punto vendita</th><th>Articolo</th></tr></thead>
+      <thead><tr><th>Gruppo</th><th>Articolo</th></tr></thead>
       <tbody>
         ${senzaVendite.slice(0, 20).map(a => {
-          const pdv = pdvOf(a.punto_vendita_id);
           const articolo = articoloById(a.articolo_id);
           return `<tr>
-            <td>${escapeHtml(pdv ? gruppoById(pdv.gruppo_id)?.nome || "—" : "—")}</td>
-            <td>${escapeHtml(pdv?.nome_insegna || "—")}</td>
+            <td>${escapeHtml(gruppoById(a.gruppo_id)?.nome || "—")}</td>
             <td>${escapeHtml(articolo?.descrizione || "—")}</td>
           </tr>`;
         }).join("")}
@@ -161,14 +154,12 @@ function renderDisallineamenti() {
   const elB = document.getElementById("as-senza-assortimento");
   elB.innerHTML = senzaAssortimento.length ? `
     <table class="desktop-table">
-      <thead><tr><th>Gruppo</th><th>Punto vendita</th><th>Articolo</th><th style="text-align:right">Valore</th></tr></thead>
+      <thead><tr><th>Gruppo</th><th>Articolo</th><th style="text-align:right">Valore</th></tr></thead>
       <tbody>
         ${senzaAssortimento.slice(0, 20).map(v => {
-          const pdv = pdvOf(v.punto_vendita_id);
           const articolo = articoloById(v.articolo_id);
           return `<tr>
-            <td>${escapeHtml(pdv ? gruppoById(pdv.gruppo_id)?.nome || "—" : "—")}</td>
-            <td>${escapeHtml(pdv?.nome_insegna || "—")}</td>
+            <td>${escapeHtml(gruppoById(v.gruppo_id)?.nome || "—")}</td>
             <td>${escapeHtml(articolo?.descrizione || "—")}</td>
             <td style="text-align:right" class="amount">${money(v.valore_euro)}</td>
           </tr>`;
@@ -209,9 +200,9 @@ export function render() {
     </div>
     <div class="card">
       <h2>Assortimenti — vista trasversale</h2>
-      <p class="hint">Cosa compra ciascun punto vendita, e a che punto sono le proposte in corso. Per aggiungere un articolo a un punto vendita, apri il gruppo GDO e usa la scheda "Assortimento".</p>
+      <p class="hint">Quali articoli sono in assortimento per ciascun gruppo GDO, e a che punto sono le proposte in corso. Per aggiungere un articolo, apri il gruppo GDO e usa la scheda "Assortimento".</p>
       <div class="filter-bar">
-        <input id="as-g-search" placeholder="Cerca articolo o punto vendita">
+        <input id="as-g-search" placeholder="Cerca articolo o gruppo">
         <select id="as-g-filter-gruppo"><option value="">Tutti i gruppi</option>${gruppi.map(g => `<option value="${g.id}">${escapeHtml(g.nome)}</option>`).join("")}</select>
         <select id="as-g-filter-stato">
           <option value="">Tutti gli stati</option>
@@ -223,19 +214,19 @@ export function render() {
         </select>
       </div>
       <table class="desktop-table">
-        <thead><tr><th>Gruppo</th><th>Punto vendita</th><th>Articolo</th><th>Stato</th><th>Data inizio</th><th style="text-align:center">Azioni</th></tr></thead>
+        <thead><tr><th>Gruppo</th><th>Articolo</th><th>Stato</th><th>Data inizio</th><th style="text-align:center">Azioni</th></tr></thead>
         <tbody id="as-g-table-body"></tbody>
       </table>
     </div>
     <div class="grid-2">
       <div class="card">
         <h2>Assortimento senza venduto</h2>
-        <p class="hint">Articoli "attivo" per un punto vendita, ma senza nessuna vendita registrata — possibile disallineamento.</p>
+        <p class="hint">Articoli "attivo" nell'assortimento di un gruppo, ma senza nessuna vendita registrata su nessun suo punto vendita — possibile disallineamento.</p>
         <div id="as-senza-vendite"></div>
       </div>
       <div class="card">
         <h2>Venduto non tracciato in assortimento</h2>
-        <p class="hint">Vendite reali su combinazioni punto vendita + articolo che non risultano in nessun assortimento.</p>
+        <p class="hint">Vendite reali su combinazioni gruppo + articolo che non risultano in nessun assortimento.</p>
         <div id="as-senza-assortimento"></div>
       </div>
     </div>`;
@@ -252,8 +243,8 @@ export function render() {
 
 // ==================================================== VISTA PER GRUPPO ===
 
-function articoliDisponibiliPerPdv(pdvId) {
-  const usati = new Set(getState().assortimenti.filter(r => String(r.punto_vendita_id) === String(pdvId)).map(r => String(r.articolo_id)));
+function articoliDisponibiliPerGruppo(gruppoId) {
+  const usati = new Set(getState().assortimenti.filter(r => String(r.gruppo_id) === String(gruppoId)).map(r => String(r.articolo_id)));
   return getState().articoli.filter(a => a.attivo !== false && !usati.has(String(a.id)));
 }
 
@@ -261,43 +252,31 @@ export function renderAssortimentoGruppo(gruppoId) {
   const container = document.getElementById("gd-assortimento-content");
   if (!container) return;
 
-  const pdvList = puntiVenditaDelGruppo(gruppoId);
-  if (!pdvList.length) {
-    container.innerHTML = `<div class="empty-state">Aggiungi prima almeno un punto vendita a questo gruppo per gestirne l'assortimento.</div>`;
-    return;
-  }
-
-  if (!selectedPdvPerGruppo[gruppoId] || !pdvList.some(p => String(p.id) === String(selectedPdvPerGruppo[gruppoId]))) {
-    selectedPdvPerGruppo[gruppoId] = pdvList[0].id;
-  }
-  const currentPdvId = selectedPdvPerGruppo[gruppoId];
-
   container.innerHTML = `
     <div class="filter-bar">
-      <select id="gd-as-pdv-select">${pdvList.map(p => `<option value="${p.id}" ${String(p.id) === String(currentPdvId) ? "selected" : ""}>${escapeHtml(p.nome_insegna)}</option>`).join("")}</select>
       <button class="btn btn-sm" id="gd-as-add">+ Aggiungi articolo</button>
     </div>
     <table class="desktop-table">
       <thead><tr><th>Articolo</th><th>Categoria</th><th>Stato</th><th>Data inizio</th><th>Note</th><th style="text-align:center">Azioni</th></tr></thead>
       <tbody id="gd-as-table-body"></tbody>
-    </table>`;
+    </table>
+    <h3 style="margin-top:20px;font-size:0.95rem">Copertura sui punti vendita</h3>
+    <p class="hint">Per ogni articolo attivo in assortimento, quali punti vendita del gruppo lo acquistano davvero (in base al venduto importato) e quali no.</p>
+    <div id="gd-as-copertura"></div>`;
 
-  renderAssortimentoPdvTable(currentPdvId);
+  renderAssortimentoGruppoTable(gruppoId);
+  renderCoperturaPdv(gruppoId);
 
-  document.getElementById("gd-as-pdv-select").addEventListener("change", event => {
-    selectedPdvPerGruppo[gruppoId] = event.target.value;
-    renderAssortimentoPdvTable(event.target.value);
-  });
-  document.getElementById("gd-as-add").addEventListener("click", () => openAssortimentoModal(selectedPdvPerGruppo[gruppoId]));
+  document.getElementById("gd-as-add").addEventListener("click", () => openAssortimentoModal(gruppoId));
 }
 
-function renderAssortimentoPdvTable(pdvId) {
+function renderAssortimentoGruppoTable(gruppoId) {
   const tbody = document.getElementById("gd-as-table-body");
   if (!tbody) return;
-  const rows = getState().assortimenti.filter(r => String(r.punto_vendita_id) === String(pdvId));
+  const rows = getState().assortimenti.filter(r => String(r.gruppo_id) === String(gruppoId));
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Nessun articolo in assortimento o in proposta per questo punto vendita.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Nessun articolo in assortimento o in proposta per questo gruppo.</td></tr>`;
     return;
   }
 
@@ -321,6 +300,41 @@ function renderAssortimentoPdvTable(pdvId) {
   tbody.querySelectorAll("[data-as-delete]").forEach(el => el.addEventListener("click", () => onDeleteAssortimento(el.dataset.asDelete)));
 }
 
+function renderCoperturaPdv(gruppoId) {
+  const el = document.getElementById("gd-as-copertura");
+  if (!el) return;
+  const { assortimenti, vendite, puntiVendita } = getState();
+  const copertura = coperturaAssortimentoPerPdv(gruppoId, assortimenti, vendite, puntiVendita);
+
+  if (!copertura.length) {
+    el.innerHTML = `<div class="empty-state">Nessun articolo attivo in assortimento per questo gruppo.</div>`;
+    return;
+  }
+
+  el.innerHTML = copertura.map(c => {
+    const articolo = articoloById(c.articolo_id);
+    const totale = c.pdvAcquirenti.length + c.pdvNonAcquirenti.length;
+    return `<details style="margin-bottom:8px;border:1px solid var(--border-color);border-radius:8px;padding:8px 12px">
+      <summary style="cursor:pointer;font-size:0.85rem">
+        <strong>${escapeHtml(articolo?.descrizione || "—")}</strong>
+        — <span style="color:var(--accent-green)">${c.pdvAcquirenti.length} acquistano</span>
+        / <span style="color:var(--text-muted)">${c.pdvNonAcquirenti.length} non acquistano</span>
+        su ${totale} punti vendita
+      </summary>
+      <div class="grid-2" style="margin-top:10px">
+        <div>
+          <p class="hint" style="margin:0 0 4px">Acquistano</p>
+          ${c.pdvAcquirenti.length ? `<ul style="margin:0;padding-left:18px;font-size:0.82rem">${c.pdvAcquirenti.map(p => `<li>${escapeHtml(p.nome_insegna)}</li>`).join("")}</ul>` : `<p class="hint" style="margin:0">Nessuno</p>`}
+        </div>
+        <div>
+          <p class="hint" style="margin:0 0 4px">Non acquistano</p>
+          ${c.pdvNonAcquirenti.length ? `<ul style="margin:0;padding-left:18px;font-size:0.82rem">${c.pdvNonAcquirenti.map(p => `<li>${escapeHtml(p.nome_insegna)}</li>`).join("")}</ul>` : `<p class="hint" style="margin:0">Nessuno</p>`}
+        </div>
+      </div>
+    </details>`;
+  }).join("");
+}
+
 async function onChangeStatoAssortimento(id, stato) {
   try {
     await updateRow("assortimenti", id, { stato });
@@ -332,14 +346,14 @@ async function onChangeStatoAssortimento(id, stato) {
   }
 }
 
-let assortimentoPdvId = null;
+let assortimentoGruppoId = null;
 
-function openAssortimentoModal(pdvId) {
-  const pdv = getState().puntiVendita.find(p => String(p.id) === String(pdvId));
-  if (!pdv) return;
-  assortimentoPdvId = pdvId;
-  const disponibili = articoliDisponibiliPerPdv(pdvId);
-  document.getElementById("as-pdv-nome").value = pdv.nome_insegna;
+function openAssortimentoModal(gruppoId) {
+  const gruppo = gruppoById(gruppoId);
+  if (!gruppo) return;
+  assortimentoGruppoId = gruppoId;
+  const disponibili = articoliDisponibiliPerGruppo(gruppoId);
+  document.getElementById("as-gruppo-nome").value = gruppo.nome;
   document.getElementById("as-articolo").innerHTML = disponibili.length
     ? disponibili.map(a => `<option value="${a.id}">${escapeHtml(a.descrizione)}</option>`).join("")
     : `<option value="">Nessun articolo disponibile — aggiungilo prima a catalogo</option>`;
@@ -357,7 +371,7 @@ async function onSubmitAssortimento(event) {
     return;
   }
   const payload = {
-    punto_vendita_id: Number(assortimentoPdvId),
+    gruppo_id: Number(assortimentoGruppoId),
     articolo_id: Number(articoloId),
     stato: document.getElementById("as-stato").value,
     data_inizio: document.getElementById("as-data-inizio").value || null,
