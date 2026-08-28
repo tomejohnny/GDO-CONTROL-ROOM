@@ -240,7 +240,7 @@ function renderContent() {
   });
   const anni = [...byYear.keys()].sort();
   document.getElementById("st-trend-chart").innerHTML = anni.length
-    ? barChartVertical({ labels: anni.map(String), series: [{ label: "Fatturato", values: anni.map(a => byYear.get(a)), color: "var(--accent-blue)" }] })
+    ? barChartVertical({ labels: anni.map(String), series: [{ label: "Fatturato", values: anni.map(a => byYear.get(a)), color: "var(--accent-blue)" }], formatValue: v => money(v) })
     : `<div class="empty-state">Nessun dato di venduto per i filtri selezionati.</div>`;
 
   // Per categoria
@@ -252,7 +252,7 @@ function renderContent() {
   });
   const catLabels = [...byCategoria.keys()];
   document.getElementById("st-categoria-chart").innerHTML = catLabels.length
-    ? barChartVertical({ labels: catLabels, series: [{ label: "Fatturato", values: catLabels.map(c => byCategoria.get(c)), color: "var(--accent-blue)" }] })
+    ? barChartVertical({ labels: catLabels, series: [{ label: "Fatturato", values: catLabels.map(c => byCategoria.get(c)), color: "var(--accent-blue)" }], formatValue: v => money(v) })
     : `<div class="empty-state">Nessun dato per categoria.</div>`;
 
   // Tabella: aggregata per gruppo+articolo (quanto vale un articolo nel suo

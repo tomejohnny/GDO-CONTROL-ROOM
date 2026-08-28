@@ -3,10 +3,11 @@ import { escapeHtml } from "./format.js";
 // Grafici SVG fatti a mano, zero dipendenze esterne. Usano le variabili CSS
 // del tema cosi' seguono automaticamente la palette.
 
-export function barChartVertical({ labels, series, width = 600, height = 220 }) {
+export function barChartVertical({ labels, series, width = 600, height = 220, formatValue }) {
   if (!labels.length) return `<div class="empty-state">Nessun dato da mostrare.</div>`;
 
-  const padding = { top: 10, right: 10, bottom: 26, left: 10 };
+  // Spazio extra in alto per il valore scritto sopra ogni barra.
+  const padding = { top: 22, right: 10, bottom: 26, left: 10 };
   const chartW = width - padding.left - padding.right;
   const chartH = height - padding.top - padding.bottom;
   const groupW = chartW / labels.length;
@@ -18,11 +19,16 @@ export function barChartVertical({ labels, series, width = 600, height = 220 }) 
   labels.forEach((label, i) => {
     const groupX = padding.left + i * groupW;
     series.forEach((s, si) => {
-      const value = Math.abs(s.values[i] || 0);
+      const rawValue = s.values[i] || 0;
+      const value = Math.abs(rawValue);
       const barH = (value / max) * chartH;
       const x = groupX + barGap + si * (barW + barGap);
       const y = padding.top + (chartH - barH);
       bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(0, barH).toFixed(1)}" fill="${s.color}" rx="2"/>`;
+      if (value > 0) {
+        const text = formatValue ? formatValue(rawValue) : String(rawValue);
+        bars += `<text x="${(x + barW / 2).toFixed(1)}" y="${(y - 6).toFixed(1)}" font-size="9" fill="var(--text-main)" text-anchor="middle">${escapeHtml(text)}</text>`;
+      }
     });
     bars += `<text x="${(groupX + groupW / 2).toFixed(1)}" y="${height - 8}" font-size="10" fill="var(--text-muted)" text-anchor="middle">${escapeHtml(label)}</text>`;
   });
