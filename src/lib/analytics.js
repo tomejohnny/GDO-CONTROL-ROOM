@@ -26,6 +26,43 @@ export function fatturatoPerAgente(agenteId, vendite, puntiVendita) {
   return { righe, fatturatoTotale, margineTotale, margineTotalePct: fatturatoTotale ? (margineTotale / fatturatoTotale) * 100 : 0 };
 }
 
+// Classifica agenti per fatturato ultimi 12 mesi (somma dei punti vendita
+// che gestiscono) — l'equivalente della classifica gruppi, ma per agente.
+export function topAgentiPerFatturato(agenti, vendite, puntiVendita, n = 8) {
+  return agenti
+    .map(a => ({ agente_id: a.id, nome: `${a.nome} ${a.cognome}`, ...fatturatoPerAgente(a.id, vendite, puntiVendita) }))
+    .filter(x => x.fatturatoTotale > 0)
+    .sort((a, b) => b.fatturatoTotale - a.fatturatoTotale)
+    .slice(0, n);
+}
+
+// Confronto CEDI (magazzino centrale) vs diretto per gruppo: rileva da solo
+// le coppie "<NOME>" / "<NOME> CEDI" (create separando il magazzino
+// centrale dal gruppo diretto) e mette a confronto fatturato ultimi 12 mesi
+// e numero di articoli in assortimento attivo sui due canali.
+export function confrontoCediDiretto(gruppi, vendite, assortimenti) {
+  const oggi = new Date();
+  const soglia = new Date(oggi.getFullYear(), oggi.getMonth() - 11, 1);
+  const fatturatoGruppo = gruppoId => vendite
+    .filter(v => String(v.gruppo_id) === String(gruppoId) && v.periodo && new Date(v.periodo) >= soglia)
+    .reduce((s, v) => s + Number(v.valore_euro || 0), 0);
+  const articoliAttivi = gruppoId => assortimenti.filter(a => String(a.gruppo_id) === String(gruppoId) && a.stato === "attivo").length;
+
+  const byNome = new Map(gruppi.map(g => [g.nome, g]));
+  const risultati = [];
+  gruppi.forEach(g => {
+    if (g.nome.endsWith(" CEDI")) return;
+    const cedi = byNome.get(`${g.nome} CEDI`);
+    if (!cedi) return;
+    risultati.push({
+      nome: g.nome,
+      diretto: { fatturato: fatturatoGruppo(g.id), articoli: articoliAttivi(g.id) },
+      cedi: { fatturato: fatturatoGruppo(cedi.id), articoli: articoliAttivi(cedi.id) },
+    });
+  });
+  return risultati.sort((a, b) => (b.diretto.fatturato + b.cedi.fatturato) - (a.diretto.fatturato + a.cedi.fatturato));
+}
+
 export function topGruppiPerFatturato(vendite, n = 5) {
   const byGruppo = new Map();
   vendite.forEach(v => {

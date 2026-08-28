@@ -2,7 +2,7 @@ import { getState, gruppoById } from "../lib/store.js";
 import { escapeHtml, money, percent, statoBadge, STATO_GRUPPO } from "../lib/format.js";
 import { coperturaGruppo } from "../lib/kpis.js";
 import { barChartHorizontal } from "../lib/charts.js";
-import { topGruppiPerFatturato, gruppiMargineBasso, pdvNonServitiSenzaAgente, SOGLIA_MARGINE_BASSO } from "../lib/analytics.js";
+import { topGruppiPerFatturato, topAgentiPerFatturato, confrontoCediDiretto, gruppiMargineBasso, pdvNonServitiSenzaAgente, SOGLIA_MARGINE_BASSO } from "../lib/analytics.js";
 
 function coverageColor(pct) {
   if (pct >= 60) return "var(--accent-green)";
@@ -13,7 +13,7 @@ function coverageColor(pct) {
 export function render() {
   const container = document.getElementById("dashboard-content");
   if (!container) return;
-  const { gruppi, puntiVendita, vendite } = getState();
+  const { gruppi, puntiVendita, vendite, agenti, assortimenti } = getState();
 
   container.innerHTML = `
     <div class="grid-2">
@@ -24,6 +24,17 @@ export function render() {
       <div class="card">
         <h2>Top gruppi per fatturato</h2>
         <div id="dash-top-fatturato"></div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <h2>Top agenti per fatturato</h2>
+        <div id="dash-top-agenti"></div>
+      </div>
+      <div class="card">
+        <h2>CEDI vs diretto per gruppo</h2>
+        <p class="hint">Fatturato ultimi 12 mesi tramite magazzino centrale rispetto ai negozi diretti, per i gruppi che hanno entrambi i canali.</p>
+        <div id="dash-cedi-confronto"></div>
       </div>
     </div>
     <div class="grid-2">
@@ -67,6 +78,29 @@ export function render() {
   document.getElementById("dash-top-fatturato").innerHTML = topFatturato.length
     ? barChartHorizontal({ items: topFatturato, formatValue: v => money(v) })
     : `<div class="empty-state">Nessun dato di venduto ancora importato.</div>`;
+
+  // Top agenti per fatturato
+  const topAgenti = topAgentiPerFatturato(agenti, vendite, puntiVendita, 8)
+    .map(a => ({ label: a.nome, value: a.fatturatoTotale, color: "var(--accent-green)" }));
+  document.getElementById("dash-top-agenti").innerHTML = topAgenti.length
+    ? barChartHorizontal({ items: topAgenti, formatValue: v => money(v) })
+    : `<div class="empty-state">Nessun punto vendita gestito da un agente ha ancora venduto.</div>`;
+
+  // CEDI vs diretto per gruppo
+  const cediConfronto = confrontoCediDiretto(gruppi, vendite, assortimenti);
+  document.getElementById("dash-cedi-confronto").innerHTML = cediConfronto.length ? `
+    <div style="overflow-x:auto"><table class="desktop-table">
+      <thead><tr><th>Gruppo</th><th style="text-align:right">Fatturato diretto</th><th style="text-align:right">Fatturato CEDI</th><th style="text-align:right">Articoli diretto</th><th style="text-align:right">Articoli CEDI</th></tr></thead>
+      <tbody>
+        ${cediConfronto.map(x => `<tr>
+          <td><strong>${escapeHtml(x.nome)}</strong></td>
+          <td style="text-align:right" class="amount">${money(x.diretto.fatturato)}</td>
+          <td style="text-align:right" class="amount">${money(x.cedi.fatturato)}</td>
+          <td style="text-align:right">${x.diretto.articoli}</td>
+          <td style="text-align:right">${x.cedi.articoli}</td>
+        </tr>`).join("")}
+      </tbody>
+    </table></div>` : `<div class="empty-state">Nessun gruppo ha ancora sia un canale diretto sia un CEDI.</div>`;
 
   // Rischio marginalità
   const margineBasso = gruppiMargineBasso(vendite);
