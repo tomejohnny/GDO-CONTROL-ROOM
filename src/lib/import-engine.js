@@ -14,6 +14,14 @@ export function normalizeKey(s) {
     .replace(/[^a-z0-9]/g, "");
 }
 
+// Come normalizeKey, ma per i codici articolo: "01011018240" e "1011018240"
+// sono lo stesso codice con zeri iniziali persi/aggiunti da export diversi
+// (Excel in particolare li droppa se la colonna è numerica). Senza questo,
+// resolveArticoloId li tratterebbe come due articoli distinti.
+export function normalizeCodice(s) {
+  return normalizeKey(s).replace(/^0+(?=.)/, "");
+}
+
 const SUBTOTAL_WORDS = ["totale", "totali", "totalecomplessivo", "subtotale", "somma", "riepilogo", "grandtotal", "total"];
 
 // Molti export da gestionali aggiungono una riga di riepilogo/totale a fine
@@ -131,7 +139,7 @@ function buildContext() {
   const agentiByFull = new Map(state.agenti.map(a => [normalizeKey(`${a.nome} ${a.cognome}`), a.id]));
   const agentiByCognome = new Map(state.agenti.map(a => [normalizeKey(a.cognome), a.id]));
   const articoliByDesc = new Map(state.articoli.map(a => [normalizeKey(a.descrizione), a.id]));
-  const articoliByCodice = new Map(state.articoli.filter(a => a.codice).map(a => [normalizeKey(a.codice), a.id]));
+  const articoliByCodice = new Map(state.articoli.filter(a => a.codice).map(a => [normalizeCodice(a.codice), a.id]));
   const pdvByKey = new Map(state.puntiVendita.map(p => [`${p.gruppo_id}::${normalizeKey(p.nome_insegna)}`, p.id]));
   // Per l'import dell'anagrafica: alcune insegne (es. "Maxi Family") si
   // ripetono su decine di indirizzi diversi. Nome da solo le confonderebbe
@@ -184,7 +192,7 @@ function guessCategoria(descrizione) {
 }
 
 async function resolveArticoloId(ctx, descrizione, codice, categoria, warnings) {
-  const codiceKey = codice ? normalizeKey(codice) : null;
+  const codiceKey = codice ? normalizeCodice(codice) : null;
   if (codiceKey && ctx.articoliByCodice.has(codiceKey)) return ctx.articoliByCodice.get(codiceKey);
 
   const descKey = normalizeKey(descrizione);

@@ -1,13 +1,17 @@
 import { getState, loadAll, gruppoById, articoloById } from "../lib/store.js";
-import { insertRow, updateRow, deleteRow } from "../lib/db.js";
+import { insertRow, updateRow, deleteRow, deleteRows } from "../lib/db.js";
 import { escapeHtml, statoBadge, STATO_ASSORTIMENTO, CATEGORIE_ARTICOLO, formatDate, money } from "../lib/format.js";
 import { openModal, closeModal } from "../lib/modal.js";
 import { toast, toastError } from "../lib/ui.js";
 import { notifyDataChanged } from "../lib/bus.js";
 import { confirmDialog } from "../lib/confirm.js";
+import { downloadCsv } from "../lib/export.js";
 import { assortimentiSenzaVendite, venditeSenzaAssortimento, coperturaAssortimentoPerPdv } from "../lib/analytics.js";
 
 let editingArticoloId = null;
+let selectedGruppoMain = null;
+let cmpGruppoA = null;
+let cmpGruppoB = null;
 
 // ============================================================= CATALOGO ===
 
@@ -82,13 +86,157 @@ async function onSubmitArticolo(event) {
   }
 }
 
+// Chiave "fuzzy" per trovare articoli quasi-identici a catalogo: import da
+// fonti diverse (PDF, Excel) hanno prodotto duplicati con differenze minime
+// — maiuscole/minuscole, uno zero iniziale sul codice perso da Excel, un
+// marcatore "(P)"/"(T)" presente in una fonte e assente nell'altra. Il
+// codice articolo da solo non basta (a volte è proprio quello a differire),
+// quindi qui si confronta la descrizione ripulita di questi dettagli.
+function articoloFuzzyKey(a) {
+  let d = (a.descrizione || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  d = d.replace(/\(p\)|\(t\)/g, "");
+  return d.replace(/[^a-z0-9]/g, "");
+}
+
+function duplicatiArticoli() {
+  const byKey = new Map();
+  getState().articoli.forEach(a => {
+    const key = articoloFuzzyKey(a);
+    if (!key) return;
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(a);
+  });
+  return [...byKey.values()].filter(group => group.length > 1).sort((a, b) => b.length - a.length);
+}
+
+// Unisce piu' articoli-duplicati in uno solo: gli assortimenti dei gruppi
+// che hanno gia' il canonico vengono scartati (altrimenti violerebbero il
+// vincolo unique gruppo+articolo), gli altri spostati sul canonico; le
+// vendite vengono sempre spostate; gli articoli duplicati infine eliminati.
+async function mergeArticoli(canonicalId, duplicateIds) {
+  const { assortimenti, vendite } = getState();
+  const gruppiConCanonico = new Set(assortimenti.filter(a => String(a.articolo_id) === String(canonicalId)).map(a => String(a.gruppo_id)));
+  for (const dupId of duplicateIds) {
+    const rows = assortimenti.filter(a => String(a.articolo_id) === String(dupId));
+    for (const row of rows) {
+      if (gruppiConCanonico.has(String(row.gruppo_id))) {
+        await deleteRow("assortimenti", row.id);
+      } else {
+        await updateRow("assortimenti", row.id, { articolo_id: Number(canonicalId) });
+        gruppiConCanonico.add(String(row.gruppo_id));
+      }
+    }
+  }
+  const dupIdSet = new Set(duplicateIds.map(String));
+  const venditeDaSpostare = vendite.filter(v => dupIdSet.has(String(v.articolo_id)));
+  for (const v of venditeDaSpostare) {
+    await updateRow("vendite", v.id, { articolo_id: Number(canonicalId) });
+  }
+  await deleteRows("articoli", duplicateIds.map(Number));
+}
+
+function renderDuplicatiArticoli() {
+  const card = document.getElementById("as-dup-card");
+  if (!card) return;
+  const groups = duplicatiArticoli();
+  if (!groups.length) {
+    card.style.display = "none";
+    return;
+  }
+  card.style.display = "";
+  document.getElementById("as-dup-count").textContent = groups.length;
+  document.getElementById("as-dup-list").innerHTML = groups.map((group, gi) => {
+    const sorted = [...group].sort((a, b) => a.id - b.id);
+    return `<details style="margin-bottom:8px;border:1px solid var(--border-color);border-radius:8px;padding:8px 12px">
+      <summary style="cursor:pointer;font-size:0.85rem"><strong>${escapeHtml(sorted[0].descrizione)}</strong> — ${sorted.length} varianti a catalogo</summary>
+      <div style="overflow-x:auto;margin-top:10px">
+        <table class="desktop-table">
+          <thead><tr><th>Canonico</th><th>Descrizione</th><th>Codice</th><th>Categoria</th></tr></thead>
+          <tbody>
+            ${sorted.map(a => `<tr>
+              <td style="text-align:center"><input type="radio" name="as-dup-canon-${gi}" value="${a.id}" ${a.id === sorted[0].id ? "checked" : ""}></td>
+              <td>${escapeHtml(a.descrizione)}</td>
+              <td class="text-muted">${escapeHtml(a.codice || "—")}</td>
+              <td>${escapeHtml(CATEGORIE_ARTICOLO[a.categoria] || a.categoria)}</td>
+            </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+      <button class="btn btn-sm" data-dup-merge="${gi}" style="margin-top:8px">Unisci in uno</button>
+    </details>`;
+  }).join("");
+
+  groups.forEach((group, gi) => {
+    document.querySelector(`[data-dup-merge="${gi}"]`)?.addEventListener("click", async () => {
+      const canonId = document.querySelector(`input[name="as-dup-canon-${gi}"]:checked`)?.value;
+      if (!canonId) return;
+      const dupIds = group.map(a => a.id).filter(id => String(id) !== String(canonId));
+      if (!(await confirmDialog(`Unire ${group.length} articoli in uno solo? Gli assortimenti e le vendite collegate verranno spostati su quello scelto, gli altri eliminati dal catalogo. Non è reversibile.`))) return;
+      try {
+        await mergeArticoli(canonId, dupIds);
+        await loadAll();
+        notifyDataChanged();
+        toast("Articoli uniti", "success");
+      } catch (err) {
+        toastError(err);
+      }
+    });
+  });
+}
+
 // ========================================================= VISTA GLOBALE ===
+
+// Righe la cui gruppo_id non risolve a nessun gruppo GDO esistente in stato:
+// un refuso di import (gruppo con nome/spazi imprevisti finito su un altro
+// record, o un vecchio residuo). Non dovrebbero mai esserci vista la foreign
+// key sul database, quindi qui e' solo un modo per scovarle e ripulirle.
+function senzaGruppoRows() {
+  return getState().assortimenti.filter(row => !gruppoById(row.gruppo_id));
+}
+
+function renderSenzaGruppo() {
+  const card = document.getElementById("as-senza-gruppo-card");
+  if (!card) return;
+  const rows = senzaGruppoRows();
+  if (!rows.length) {
+    card.style.display = "none";
+    return;
+  }
+  card.style.display = "";
+  document.getElementById("as-senza-gruppo-count").textContent = rows.length;
+  document.getElementById("as-senza-gruppo-body").innerHTML = rows.slice(0, 50).map(row => {
+    const articolo = articoloById(row.articolo_id);
+    return `<tr>
+      <td class="text-muted">${escapeHtml(String(row.gruppo_id ?? "null"))}</td>
+      <td>${escapeHtml(articolo?.descrizione || "—")}</td>
+      <td>${statoBadge(STATO_ASSORTIMENTO, row.stato)}</td>
+      <td style="text-align:center"><button class="btn btn-red btn-sm" data-as-delete="${row.id}">Elimina</button></td>
+    </tr>`;
+  }).join("");
+  document.getElementById("as-senza-gruppo-more").textContent = rows.length > 50 ? `e altre ${rows.length - 50}.` : "";
+  card.querySelectorAll("[data-as-delete]").forEach(el => el.addEventListener("click", () => onDeleteAssortimento(el.dataset.asDelete)));
+}
+
+async function onDeleteAllSenzaGruppo() {
+  const rows = senzaGruppoRows();
+  if (!rows.length) return;
+  if (!(await confirmDialog(`Eliminare tutte le ${rows.length} righe senza un gruppo riconosciuto? L'operazione non è reversibile.`))) return;
+  try {
+    await deleteRows("assortimenti", rows.map(r => r.id));
+    await loadAll();
+    notifyDataChanged();
+    toast(`${rows.length} righe eliminate`, "success");
+  } catch (err) {
+    toastError(err);
+  }
+}
 
 function globalFilters() {
   return {
     search: (document.getElementById("as-g-search")?.value || "").trim().toLowerCase(),
     gruppo: document.getElementById("as-g-filter-gruppo")?.value || "",
     stato: document.getElementById("as-g-filter-stato")?.value || "",
+    categoria: document.getElementById("as-g-filter-categoria")?.value || "",
   };
 }
 
@@ -98,6 +246,7 @@ function globalFilteredRows() {
     const articolo = articoloById(row.articolo_id);
     if (f.gruppo && String(row.gruppo_id) !== f.gruppo) return false;
     if (f.stato && row.stato !== f.stato) return false;
+    if (f.categoria && articolo?.categoria !== f.categoria) return false;
     const gruppo = gruppoById(row.gruppo_id);
     if (f.search && !`${articolo?.descrizione || ""} ${gruppo?.nome || ""}`.toLowerCase().includes(f.search)) return false;
     return true;
@@ -127,6 +276,17 @@ function renderGlobalTable() {
   }).join("");
 
   tbody.querySelectorAll("[data-as-delete]").forEach(el => el.addEventListener("click", () => onDeleteAssortimento(el.dataset.asDelete)));
+}
+
+function exportGlobalCsv() {
+  const rows = globalFilteredRows();
+  const headers = ["Gruppo", "Articolo", "Codice", "Categoria", "Stato", "Data inizio"];
+  const data = rows.map(row => {
+    const gruppo = gruppoById(row.gruppo_id);
+    const articolo = articoloById(row.articolo_id);
+    return [gruppo?.nome || "", articolo?.descrizione || "", articolo?.codice || "", articolo ? CATEGORIE_ARTICOLO[articolo.categoria] || articolo.categoria : "", STATO_ASSORTIMENTO[row.stato]?.label || row.stato, row.data_inizio || ""];
+  });
+  downloadCsv("assortimenti.csv", headers, data);
 }
 
 function renderDisallineamenti() {
@@ -188,6 +348,20 @@ export function render() {
 
   const gruppi = [...getState().gruppi].sort((a, b) => a.nome.localeCompare(b.nome));
   container.innerHTML = `
+    <div class="card" id="as-senza-gruppo-card" style="display:none;border-color:var(--accent-red)">
+      <h2>
+        <span>⚠ Righe con gruppo non riconosciuto (<span id="as-senza-gruppo-count">0</span>)</span>
+        <button class="btn btn-red btn-sm" id="as-senza-gruppo-delete-all">Elimina tutte</button>
+      </h2>
+      <p class="hint">Queste righe di assortimento puntano a un gruppo GDO che non esiste più (nome cambiato, gruppo eliminato, o un refuso di import). Controlla se sono da eliminare o se manca solo un gruppo da ricreare.</p>
+      <div style="overflow-x:auto">
+        <table class="desktop-table">
+          <thead><tr><th>ID gruppo grezzo</th><th>Articolo</th><th>Stato</th><th style="text-align:center">Azioni</th></tr></thead>
+          <tbody id="as-senza-gruppo-body"></tbody>
+        </table>
+      </div>
+      <p class="hint" id="as-senza-gruppo-more" style="margin-top:8px;margin-bottom:0"></p>
+    </div>
     <div class="card">
       <h2>
         <span>Catalogo articoli</span>
@@ -198,12 +372,48 @@ export function render() {
         <tbody id="as-articoli-table-body">${getState().articoli.map(articoloRow).join("") || `<tr><td colspan="5" class="empty-state">Nessun articolo a catalogo. Aggiungine uno per iniziare.</td></tr>`}</tbody>
       </table>
     </div>
+    <div class="card" id="as-dup-card" style="display:none">
+      <h2>⚠ Possibili articoli duplicati a catalogo (<span id="as-dup-count">0</span>)</h2>
+      <p class="hint">Stesso prodotto importato più volte con piccole differenze (maiuscole, zero iniziale sul codice, marcatore "(P)"). Scegli quale versione tenere e unisci le altre: assortimenti e vendite vengono spostati automaticamente su quella scelta.</p>
+      <div id="as-dup-list"></div>
+    </div>
     <div class="card">
-      <h2>Assortimenti — vista trasversale</h2>
-      <p class="hint">Quali articoli sono in assortimento per ciascun gruppo GDO, e a che punto sono le proposte in corso. Per aggiungere un articolo, apri il gruppo GDO e usa la scheda "Assortimento".</p>
+      <h2>Assortimento per gruppo</h2>
+      <p class="hint">Seleziona un gruppo per vedere, modificare e integrare il suo assortimento senza dover passare dalla scheda del gruppo.</p>
+      <div class="filter-bar">
+        <select id="as-sel-gruppo">${gruppi.map(g => `<option value="${g.id}" ${String(g.id) === String(selectedGruppoMain) ? "selected" : ""}>${escapeHtml(g.nome)}</option>`).join("")}</select>
+        <button class="btn btn-sm" id="as-sel-add">+ Aggiungi articolo</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="desktop-table">
+          <thead><tr><th>Articolo</th><th>Categoria</th><th>Stato</th><th>Data inizio</th><th>Note</th><th style="text-align:center">Azioni</th></tr></thead>
+          <tbody id="as-sel-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Confronta due gruppi</h2>
+      <p class="hint">Articoli attivi in comune tra due gruppi, e quelli tenuti solo dall'uno o dall'altro — utile per proporre a un gruppo quello che un cliente simile già acquista.</p>
+      <div class="filter-bar">
+        <select id="as-cmp-a"></select>
+        <span class="text-muted">vs</span>
+        <select id="as-cmp-b"></select>
+      </div>
+      <div id="as-cmp-result"></div>
+    </div>
+    <div class="card">
+      <h2>
+        <span>Assortimenti — vista trasversale</span>
+        <button class="btn btn-ghost btn-sm" id="as-g-export">⇩ Esporta CSV</button>
+      </h2>
+      <p class="hint">Quali articoli sono in assortimento per ciascun gruppo GDO, e a che punto sono le proposte in corso.</p>
       <div class="filter-bar">
         <input id="as-g-search" placeholder="Cerca articolo o gruppo">
         <select id="as-g-filter-gruppo"><option value="">Tutti i gruppi</option>${gruppi.map(g => `<option value="${g.id}">${escapeHtml(g.nome)}</option>`).join("")}</select>
+        <select id="as-g-filter-categoria">
+          <option value="">Tutte le categorie</option>
+          ${Object.entries(CATEGORIE_ARTICOLO).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}
+        </select>
         <select id="as-g-filter-stato">
           <option value="">Tutti gli stati</option>
           <option value="attivo">Attivo</option>
@@ -233,12 +443,82 @@ export function render() {
 
   wireArticoloActions(container);
   document.getElementById("as-art-new").addEventListener("click", () => openArticoloModal(null));
-  ["as-g-search", "as-g-filter-gruppo", "as-g-filter-stato"].forEach(id => {
+  document.getElementById("as-g-export").addEventListener("click", exportGlobalCsv);
+  document.getElementById("as-senza-gruppo-delete-all").addEventListener("click", onDeleteAllSenzaGruppo);
+  ["as-g-search", "as-g-filter-gruppo", "as-g-filter-categoria", "as-g-filter-stato"].forEach(id => {
     document.getElementById(id).addEventListener("input", renderGlobalTable);
     document.getElementById(id).addEventListener("change", renderGlobalTable);
   });
+
+  if (gruppi.length) {
+    if (!selectedGruppoMain || !gruppi.some(g => String(g.id) === String(selectedGruppoMain))) selectedGruppoMain = gruppi[0].id;
+    const selGruppo = document.getElementById("as-sel-gruppo");
+    selGruppo.value = selectedGruppoMain;
+    selGruppo.addEventListener("change", () => {
+      selectedGruppoMain = selGruppo.value;
+      renderAssortimentoGruppoTable(selGruppo.value, "as-sel-table-body");
+    });
+    document.getElementById("as-sel-add").addEventListener("click", () => openAssortimentoModal(selGruppo.value));
+    renderAssortimentoGruppoTable(selGruppo.value, "as-sel-table-body");
+
+    if (!cmpGruppoA || !gruppi.some(g => String(g.id) === String(cmpGruppoA))) cmpGruppoA = gruppi[0].id;
+    if (!cmpGruppoB || !gruppi.some(g => String(g.id) === String(cmpGruppoB))) cmpGruppoB = gruppi[1]?.id ?? gruppi[0].id;
+    const cmpA = document.getElementById("as-cmp-a");
+    const cmpB = document.getElementById("as-cmp-b");
+    cmpA.innerHTML = gruppi.map(g => `<option value="${g.id}">${escapeHtml(g.nome)}</option>`).join("");
+    cmpB.innerHTML = gruppi.map(g => `<option value="${g.id}">${escapeHtml(g.nome)}</option>`).join("");
+    cmpA.value = cmpGruppoA;
+    cmpB.value = cmpGruppoB;
+    cmpA.addEventListener("change", () => { cmpGruppoA = cmpA.value; renderConfrontoGruppi(cmpA.value, cmpB.value); });
+    cmpB.addEventListener("change", () => { cmpGruppoB = cmpB.value; renderConfrontoGruppi(cmpA.value, cmpB.value); });
+    renderConfrontoGruppi(cmpA.value, cmpB.value);
+  } else {
+    document.getElementById("as-sel-table-body").innerHTML = `<tr><td colspan="6" class="empty-state">Crea prima un gruppo GDO.</td></tr>`;
+    document.getElementById("as-cmp-result").innerHTML = `<div class="empty-state">Servono almeno due gruppi per confrontarli.</div>`;
+  }
+
   renderGlobalTable();
   renderDisallineamenti();
+  renderSenzaGruppo();
+  renderDuplicatiArticoli();
+}
+
+function renderConfrontoGruppi(gruppoAId, gruppoBId) {
+  const el = document.getElementById("as-cmp-result");
+  if (!el) return;
+  if (String(gruppoAId) === String(gruppoBId)) {
+    el.innerHTML = `<div class="empty-state">Seleziona due gruppi diversi.</div>`;
+    return;
+  }
+  const { assortimenti } = getState();
+  const attiviDi = gruppoId => new Set(assortimenti.filter(a => String(a.gruppo_id) === String(gruppoId) && a.stato === "attivo").map(a => a.articolo_id));
+  const setA = attiviDi(gruppoAId);
+  const setB = attiviDi(gruppoBId);
+  const comuni = [...setA].filter(id => setB.has(id));
+  const soloA = [...setA].filter(id => !setB.has(id));
+  const soloB = [...setB].filter(id => !setA.has(id));
+  const nomeA = gruppoById(gruppoAId)?.nome || "—";
+  const nomeB = gruppoById(gruppoBId)?.nome || "—";
+
+  const list = ids => ids.length
+    ? `<ul style="margin:0;padding-left:18px;font-size:0.82rem;max-height:260px;overflow-y:auto">${ids.map(id => `<li>${escapeHtml(articoloById(id)?.descrizione || "—")}</li>`).join("")}</ul>`
+    : `<p class="hint" style="margin:0">Nessuno</p>`;
+
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-top:12px">
+      <div>
+        <p class="hint" style="margin:0 0 6px"><strong>Solo ${escapeHtml(nomeA)}</strong> (${soloA.length})</p>
+        ${list(soloA)}
+      </div>
+      <div>
+        <p class="hint" style="margin:0 0 6px"><strong>In comune</strong> (${comuni.length})</p>
+        ${list(comuni)}
+      </div>
+      <div>
+        <p class="hint" style="margin:0 0 6px"><strong>Solo ${escapeHtml(nomeB)}</strong> (${soloB.length})</p>
+        ${list(soloB)}
+      </div>
+    </div>`;
 }
 
 // ==================================================== VISTA PER GRUPPO ===
@@ -270,8 +550,8 @@ export function renderAssortimentoGruppo(gruppoId) {
   document.getElementById("gd-as-add").addEventListener("click", () => openAssortimentoModal(gruppoId));
 }
 
-function renderAssortimentoGruppoTable(gruppoId) {
-  const tbody = document.getElementById("gd-as-table-body");
+function renderAssortimentoGruppoTable(gruppoId, tbodyId = "gd-as-table-body") {
+  const tbody = document.getElementById(tbodyId);
   if (!tbody) return;
   const rows = getState().assortimenti.filter(r => String(r.gruppo_id) === String(gruppoId));
 

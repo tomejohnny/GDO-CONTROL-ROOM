@@ -69,3 +69,10 @@ export async function deleteRow(table, id) {
   if (error) throw error;
   await logAudit("delete", table, id, null);
 }
+
+export async function deleteRows(table, ids) {
+  if (!ids.length) return;
+  const { error } = await supabase.from(table).delete().in("id", ids);
+  if (error) throw error;
+  await logAudit("delete_bulk", table, null, { count: ids.length, ids });
+}
