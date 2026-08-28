@@ -33,9 +33,11 @@ function pdvAddressKey(p) {
 }
 
 function fatturatoPerPdvMap(vendite) {
+  const oggi = new Date();
+  const inizioAnno = new Date(oggi.getFullYear(), 0, 1);
   const map = new Map();
   vendite.forEach(v => {
-    if (v.punto_vendita_id == null) return;
+    if (v.punto_vendita_id == null || !v.periodo || new Date(v.periodo) < inizioAnno) return;
     map.set(v.punto_vendita_id, (map.get(v.punto_vendita_id) || 0) + Number(v.valore_euro || 0));
   });
   return map;
@@ -155,7 +157,7 @@ function renderDuplicatiPdv() {
       </summary>
       <div style="overflow-x:auto;margin-top:10px">
         <table class="desktop-table">
-          <thead><tr><th>Unisci</th><th>Insegna</th><th>Comune</th><th>Indirizzo</th><th>Stato</th><th>Agente</th><th style="text-align:right">Fatturato 12 mesi</th></tr></thead>
+          <thead><tr><th>Unisci</th><th>Insegna</th><th>Comune</th><th>Indirizzo</th><th>Stato</th><th>Agente</th><th style="text-align:right">Fatturato anno</th></tr></thead>
           <tbody>
             ${group.map(p => `<tr>
               <td style="text-align:center"><input type="checkbox" class="pv-dup-check" data-group="${gi}" value="${p.id}"></td>

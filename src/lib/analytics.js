@@ -3,12 +3,19 @@
 
 export const SOGLIA_MARGINE_BASSO = 15; // %
 
-// Per un agente: fatturato ultimi 12 mesi di ciascun punto vendita che
+// Anno corrente (1 gennaio - oggi), non un rolling di 12 mesi: molti import
+// hanno il totale annuale accorpato su un'unica data (in mancanza del
+// dettaglio mese per mese), quindi "ultimi 12 mesi" risulterebbe fuorviante.
+function inizioAnnoCorrente() {
+  const oggi = new Date();
+  return new Date(oggi.getFullYear(), 0, 1);
+}
+
+// Per un agente: fatturato dell'anno corrente di ciascun punto vendita che
 // gestisce, e il totale — per vedere subito il valore commerciale in carico
 // a ciascun agente e come si distribuisce tra i suoi punti vendita.
 export function fatturatoPerAgente(agenteId, vendite, puntiVendita) {
-  const oggi = new Date();
-  const soglia = new Date(oggi.getFullYear(), oggi.getMonth() - 11, 1);
+  const soglia = inizioAnnoCorrente();
   const venditeRecenti = vendite.filter(v => v.periodo && new Date(v.periodo) >= soglia);
 
   const pdvGestiti = puntiVendita.filter(p => String(p.agente_id) === String(agenteId));
@@ -26,8 +33,9 @@ export function fatturatoPerAgente(agenteId, vendite, puntiVendita) {
   return { righe, fatturatoTotale, margineTotale, margineTotalePct: fatturatoTotale ? (margineTotale / fatturatoTotale) * 100 : 0 };
 }
 
-// Classifica agenti per fatturato ultimi 12 mesi (somma dei punti vendita
-// che gestiscono) — l'equivalente della classifica gruppi, ma per agente.
+// Classifica agenti per fatturato dell'anno corrente (somma dei punti
+// vendita che gestiscono) — l'equivalente della classifica gruppi, ma per
+// agente.
 export function topAgentiPerFatturato(agenti, vendite, puntiVendita, n = 8) {
   return agenti
     .map(a => ({ agente_id: a.id, nome: `${a.nome} ${a.cognome}`, ...fatturatoPerAgente(a.id, vendite, puntiVendita) }))
@@ -38,11 +46,10 @@ export function topAgentiPerFatturato(agenti, vendite, puntiVendita, n = 8) {
 
 // Confronto CEDI (magazzino centrale) vs diretto per gruppo: rileva da solo
 // le coppie "<NOME>" / "<NOME> CEDI" (create separando il magazzino
-// centrale dal gruppo diretto) e mette a confronto fatturato ultimi 12 mesi
-// e numero di articoli in assortimento attivo sui due canali.
+// centrale dal gruppo diretto) e mette a confronto fatturato dell'anno
+// corrente e numero di articoli in assortimento attivo sui due canali.
 export function confrontoCediDiretto(gruppi, vendite, assortimenti) {
-  const oggi = new Date();
-  const soglia = new Date(oggi.getFullYear(), oggi.getMonth() - 11, 1);
+  const soglia = inizioAnnoCorrente();
   const fatturatoGruppo = gruppoId => vendite
     .filter(v => String(v.gruppo_id) === String(gruppoId) && v.periodo && new Date(v.periodo) >= soglia)
     .reduce((s, v) => s + Number(v.valore_euro || 0), 0);

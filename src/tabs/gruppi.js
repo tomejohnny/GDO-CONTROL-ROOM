@@ -5,7 +5,7 @@ import { openModal, closeModal } from "../lib/modal.js";
 import { toast, toastError } from "../lib/ui.js";
 import { notifyDataChanged } from "../lib/bus.js";
 import { confirmDialog } from "../lib/confirm.js";
-import { coperturaGruppo, fatturatoUltimi12Mesi } from "../lib/kpis.js";
+import { coperturaGruppo, fatturatoAnnoCorrente } from "../lib/kpis.js";
 import { openPdvModal, wirePdvRowActions, populateGruppoSelect } from "../lib/pdv-shared.js";
 import { renderAssortimentoGruppo } from "./assortimenti.js";
 
@@ -192,7 +192,7 @@ function renderDetail() {
   document.getElementById("gd-kpi-pdv-sub").textContent = totale ? `Copertura ${pct.toFixed(1)}%` : "Gruppo senza punti vendita (gestito a magazzino centrale)";
 
   const venditeGruppo = getState().vendite.filter(v => String(v.gruppo_id) === String(g.id));
-  document.getElementById("gd-kpi-fatturato").textContent = money(fatturatoUltimi12Mesi(venditeGruppo));
+  document.getElementById("gd-kpi-fatturato").textContent = money(fatturatoAnnoCorrente(venditeGruppo));
 
   renderPdvSubview();
   renderAssortimentoGruppo(g.id);

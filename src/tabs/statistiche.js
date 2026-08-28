@@ -1,6 +1,6 @@
 import { getState, gruppoById, articoloById } from "../lib/store.js";
-import { escapeHtml, money, number, percent, formatMonth, CATEGORIE_ARTICOLO } from "../lib/format.js";
-import { lineChart, barChartVertical } from "../lib/charts.js";
+import { escapeHtml, money, number, percent, CATEGORIE_ARTICOLO } from "../lib/format.js";
+import { barChartVertical } from "../lib/charts.js";
 import { downloadCsv } from "../lib/export.js";
 import { articoliComuniTraGruppi } from "../lib/analytics.js";
 
@@ -33,11 +33,6 @@ function exportPdvCsv() {
     return [gruppo?.nome || "", pdv?.nome_insegna || "Aggregato gruppo", g.articoli.size, g.quantita, g.valore_euro.toFixed(2), g.costo_acquisto.toFixed(2), g.margine_valore.toFixed(2), marginePct.toFixed(1)];
   });
   downloadCsv("fatturato_per_punto_vendita.csv", headers, rows);
-}
-
-function monthKey(dateStr) {
-  const d = new Date(dateStr);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function filters() {
@@ -234,16 +229,18 @@ function renderContent() {
   document.getElementById("st-kpi-margine").textContent = money(totaleMargine);
   document.getElementById("st-kpi-margine-pct").textContent = margineMedioPct.toLocaleString("it-IT", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "%";
 
-  // Trend mensile
-  const byMonth = new Map();
+  // Fatturato per anno. Non per mese: molti import hanno il totale annuale
+  // accorpato su un'unica data (in mancanza del dettaglio mese per mese),
+  // quindi un trend mensile mostrerebbe un andamento inventato. Per anno
+  // resta corretto qualunque sia il livello di dettaglio dei dati importati.
+  const byYear = new Map();
   rows.forEach(v => {
-    const key = monthKey(v.periodo);
-    byMonth.set(key, (byMonth.get(key) || 0) + Number(v.valore_euro || 0));
+    const anno = new Date(v.periodo).getFullYear();
+    byYear.set(anno, (byYear.get(anno) || 0) + Number(v.valore_euro || 0));
   });
-  const months = [...byMonth.keys()].sort();
-  const points = months.map(m => ({ x: m, y: byMonth.get(m), label: formatMonth(m + "-01") }));
-  document.getElementById("st-trend-chart").innerHTML = points.length
-    ? lineChart({ points })
+  const anni = [...byYear.keys()].sort();
+  document.getElementById("st-trend-chart").innerHTML = anni.length
+    ? barChartVertical({ labels: anni.map(String), series: [{ label: "Fatturato", values: anni.map(a => byYear.get(a)), color: "var(--accent-blue)" }] })
     : `<div class="empty-state">Nessun dato di venduto per i filtri selezionati.</div>`;
 
   // Per categoria
@@ -353,7 +350,7 @@ export function render() {
     </div>
     <div class="grid-2">
       <div class="card">
-        <h2>Andamento mensile del fatturato</h2>
+        <h2>Fatturato per anno</h2>
         <div id="st-trend-chart"></div>
       </div>
       <div class="card">

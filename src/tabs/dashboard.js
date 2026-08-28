@@ -33,7 +33,7 @@ export function render() {
       </div>
       <div class="card">
         <h2>CEDI vs diretto per gruppo</h2>
-        <p class="hint">Fatturato ultimi 12 mesi tramite magazzino centrale rispetto ai negozi diretti, per i gruppi che hanno entrambi i canali.</p>
+        <p class="hint">Fatturato dell'anno corrente tramite magazzino centrale rispetto ai negozi diretti, per i gruppi che hanno entrambi i canali.</p>
         <div id="dash-cedi-confronto"></div>
       </div>
     </div>
