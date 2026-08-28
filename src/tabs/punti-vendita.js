@@ -20,6 +20,18 @@ function pdvNameTokens(nome) {
   return s.split(" ").filter(t => t && !PDV_STOPWORDS.has(t));
 }
 
+// Comune+indirizzo normalizzati: una catena con lo stesso nome insegna in
+// più paesi (es. "Maxì") non è un duplicato, è lo stesso brand in sedi
+// diverse — qui è dove lo capiamo. Se anche uno solo dei due non ha
+// l'indirizzo valorizzato non possiamo escludere nulla con certezza, quindi
+// si ricade sul solo confronto nome.
+function pdvAddressKey(p) {
+  const parts = [p.comune, p.indirizzo].filter(Boolean).map(s =>
+    s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim()
+  );
+  return parts.length ? parts.join("|") : null;
+}
+
 function fatturatoPerPdvMap(vendite) {
   const map = new Map();
   vendite.forEach(v => {
@@ -29,14 +41,40 @@ function fatturatoPerPdvMap(vendite) {
   return map;
 }
 
+const PDV_DUP_DISMISS_KEY = "gdo-pdv-dup-dismissed";
+
+function getDismissedPdvDupKeys() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(PDV_DUP_DISMISS_KEY) || "[]"));
+  } catch {
+    return new Set();
+  }
+}
+
+function dismissPdvDupGroup(ids) {
+  const set = getDismissedPdvDupKeys();
+  set.add(pdvGroupKey(ids));
+  try { localStorage.setItem(PDV_DUP_DISMISS_KEY, JSON.stringify([...set])); } catch {}
+}
+
+function pdvGroupKey(ids) {
+  return [...ids].map(String).sort().join(",");
+}
+
 function duplicatiPuntiVendita() {
   const { puntiVendita, vendite } = getState();
   const fatturato = fatturatoPerPdvMap(vendite);
+  const dismissed = getDismissedPdvDupKeys();
 
   const byGruppo = new Map();
   puntiVendita.forEach(p => {
     if (!byGruppo.has(p.gruppo_id)) byGruppo.set(p.gruppo_id, []);
-    byGruppo.get(p.gruppo_id).push({ ...p, tokens: pdvNameTokens(p.nome_insegna), fatturato: fatturato.get(p.id) || 0 });
+    byGruppo.get(p.gruppo_id).push({
+      ...p,
+      tokens: pdvNameTokens(p.nome_insegna),
+      addressKey: pdvAddressKey(p),
+      fatturato: fatturato.get(p.id) || 0,
+    });
   });
 
   const gruppi = [];
@@ -49,12 +87,16 @@ function duplicatiPuntiVendita() {
       list.forEach((q, j) => {
         if (i === j || used.has(q.id) || !q.tokens.length) return;
         const setB = new Set(q.tokens);
-        const subset = [...setA].every(t => setB.has(t)) || [...setB].every(t => setA.has(t));
-        if (subset) group.push(q);
+        const nameSubset = [...setA].every(t => setB.has(t)) || [...setB].every(t => setA.has(t));
+        if (!nameSubset) return;
+        // Indirizzi entrambi noti e diversi: stesso nome ma sedi diverse, non è un duplicato.
+        if (p.addressKey && q.addressKey && p.addressKey !== q.addressKey) return;
+        group.push(q);
       });
       if (group.length > 1) {
         group.forEach(g => used.add(g.id));
-        gruppi.push(group.sort((a, b) => b.fatturato - a.fatturato));
+        group.sort((a, b) => b.fatturato - a.fatturato);
+        if (!dismissed.has(pdvGroupKey(group.map(g => g.id)))) gruppi.push(group);
       }
     });
   });
@@ -113,11 +155,13 @@ function renderDuplicatiPdv() {
       </summary>
       <div style="overflow-x:auto;margin-top:10px">
         <table class="desktop-table">
-          <thead><tr><th>Canonico</th><th>Insegna</th><th>Stato</th><th>Agente</th><th style="text-align:right">Fatturato 12 mesi*</th></tr></thead>
+          <thead><tr><th>Canonico</th><th>Insegna</th><th>Comune</th><th>Indirizzo</th><th>Stato</th><th>Agente</th><th style="text-align:right">Fatturato 12 mesi*</th></tr></thead>
           <tbody>
             ${group.map(p => `<tr>
               <td style="text-align:center"><input type="radio" name="pv-dup-canon-${gi}" value="${p.id}" ${p.id === group[0].id ? "checked" : ""}></td>
               <td>${escapeHtml(p.nome_insegna)}</td>
+              <td>${escapeHtml(p.comune || "—")}</td>
+              <td>${escapeHtml(p.indirizzo || "—")}</td>
               <td>${statoBadge(STATO_PDV, p.stato)}</td>
               <td class="text-muted">${escapeHtml(agenteNome(p.agente_id) || "—")}</td>
               <td style="text-align:right" class="amount">${money(p.fatturato)}</td>
@@ -126,7 +170,10 @@ function renderDuplicatiPdv() {
         </table>
       </div>
       <p class="hint" style="margin:6px 0 0">*Selezionato di default quello col fatturato più alto. Le schede vuote del canonico vengono completate dagli altri (es. l'agente), il venduto degli altri si somma su quello scelto.</p>
-      <button class="btn btn-sm" data-pdv-dup-merge="${gi}" style="margin-top:8px">Unisci in uno</button>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-sm" data-pdv-dup-merge="${gi}">Unisci in uno</button>
+        <button class="btn btn-ghost btn-sm" data-pdv-dup-dismiss="${gi}">Non sono duplicati</button>
+      </div>
     </details>`;
   }).join("");
 
@@ -144,6 +191,11 @@ function renderDuplicatiPdv() {
       } catch (err) {
         toastError(err);
       }
+    });
+    document.querySelector(`[data-pdv-dup-dismiss="${gi}"]`)?.addEventListener("click", () => {
+      dismissPdvDupGroup(group.map(p => p.id));
+      renderDuplicatiPdv();
+      toast("Segnati come punti vendita distinti — non compariranno più in questo elenco.");
     });
   });
 }
