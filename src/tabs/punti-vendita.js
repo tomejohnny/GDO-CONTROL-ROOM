@@ -155,10 +155,10 @@ function renderDuplicatiPdv() {
       </summary>
       <div style="overflow-x:auto;margin-top:10px">
         <table class="desktop-table">
-          <thead><tr><th>Canonico</th><th>Insegna</th><th>Comune</th><th>Indirizzo</th><th>Stato</th><th>Agente</th><th style="text-align:right">Fatturato 12 mesi*</th></tr></thead>
+          <thead><tr><th>Unisci</th><th>Insegna</th><th>Comune</th><th>Indirizzo</th><th>Stato</th><th>Agente</th><th style="text-align:right">Fatturato 12 mesi</th></tr></thead>
           <tbody>
             ${group.map(p => `<tr>
-              <td style="text-align:center"><input type="radio" name="pv-dup-canon-${gi}" value="${p.id}" ${p.id === group[0].id ? "checked" : ""}></td>
+              <td style="text-align:center"><input type="checkbox" class="pv-dup-check" data-group="${gi}" value="${p.id}"></td>
               <td>${escapeHtml(p.nome_insegna)}</td>
               <td>${escapeHtml(p.comune || "—")}</td>
               <td>${escapeHtml(p.indirizzo || "—")}</td>
@@ -169,20 +169,25 @@ function renderDuplicatiPdv() {
           </tbody>
         </table>
       </div>
-      <p class="hint" style="margin:6px 0 0">*Selezionato di default quello col fatturato più alto. Le schede vuote del canonico vengono completate dagli altri (es. l'agente), il venduto degli altri si somma su quello scelto.</p>
+      <p class="hint" style="margin:6px 0 0">Spunta solo quelli che sono davvero lo stesso negozio (es. le due sedi di Auronzo, non anche quelle di San Vito) e unisci: diventano uno solo, quello col fatturato più alto tra i selezionati. Le sue schede vuote (es. l'agente) vengono completate dagli altri selezionati, il venduto si somma su di lui.</p>
       <div style="display:flex;gap:8px;margin-top:8px">
-        <button class="btn btn-sm" data-pdv-dup-merge="${gi}">Unisci in uno</button>
-        <button class="btn btn-ghost btn-sm" data-pdv-dup-dismiss="${gi}">Non sono duplicati</button>
+        <button class="btn btn-sm" data-pdv-dup-merge="${gi}">Unisci selezionati</button>
+        <button class="btn btn-ghost btn-sm" data-pdv-dup-dismiss="${gi}">Nessuno di questi è un duplicato</button>
       </div>
     </details>`;
   }).join("");
 
   gruppi.forEach((group, gi) => {
     document.querySelector(`[data-pdv-dup-merge="${gi}"]`)?.addEventListener("click", async () => {
-      const canonId = document.querySelector(`input[name="pv-dup-canon-${gi}"]:checked`)?.value;
-      if (!canonId) return;
-      const dupIds = group.map(p => p.id).filter(id => String(id) !== String(canonId));
-      if (!(await confirmDialog(`Unire ${group.length} punti vendita in uno solo? Il venduto degli altri verrà spostato su quello scelto, gli altri eliminati. Non è reversibile.`))) return;
+      const checked = [...document.querySelectorAll(`.pv-dup-check[data-group="${gi}"]:checked`)].map(el => el.value);
+      if (checked.length < 2) {
+        toast("Seleziona almeno due punti vendita da unire.", "error");
+        return;
+      }
+      const selezionati = group.filter(p => checked.includes(String(p.id))).sort((a, b) => b.fatturato - a.fatturato);
+      const canonId = selezionati[0].id;
+      const dupIds = selezionati.slice(1).map(p => p.id);
+      if (!(await confirmDialog(`Unire ${selezionati.length} punti vendita in uno solo (resta "${selezionati[0].nome_insegna}")? Il venduto degli altri verrà spostato su quello scelto, gli altri eliminati. Non è reversibile.`))) return;
       try {
         await mergePuntiVendita(canonId, dupIds);
         await loadAll();
