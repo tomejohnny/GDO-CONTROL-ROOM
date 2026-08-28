@@ -273,25 +273,57 @@ export const TARGETS = {
       if (isSubtotalLabel(nomeInsegna)) return { ok: false, error: `riga di riepilogo/totale esclusa ("${nomeInsegna}" non è un punto vendita reale)` };
       const warnings = [];
       const gruppoId = await resolveGruppoId(ctx, gruppoNome, warnings);
-      const agenteId = resolveAgenteId(ctx, s(row.agente), warnings);
-      const payload = {
-        gruppo_id: gruppoId,
-        nome_insegna: nomeInsegna,
-        indirizzo: s(row.indirizzo) || null,
-        comune: s(row.comune) || null,
-        provincia: s(row.provincia).toUpperCase() || null,
-        cap: s(row.cap) || null,
-        stato: normStato(row.stato, ["servito", "non_servito", "target", "sospeso"], "non_servito"),
-        agente_id: agenteId,
-        data_attivazione: parseDateLoose(row.data_attivazione),
-        note: s(row.note) || null,
-      };
-      const key = `${gruppoId}::${normalizeKey(nomeInsegna)}::${normalizeKey(payload.comune)}::${normalizeKey(payload.indirizzo)}`;
-      const existingId = ctx.pdvByKeyDetailed.get(key);
-      if (existingId) await updateRow("punti_vendita", existingId, payload);
-      else {
+      const comune = s(row.comune) || null;
+      const indirizzo = s(row.indirizzo) || null;
+
+      // Match preciso per nome+comune+indirizzo quando il file li fornisce.
+      // Un file "parziale" (es. solo nome+agente, senza indirizzo) ricade
+      // sul nome da solo, ma solo se univoco nel gruppo — altrimenti
+      // rischierebbe di aggiornare il punto vendita sbagliato.
+      let existingId = null;
+      if (comune || indirizzo) {
+        existingId = ctx.pdvByKeyDetailed.get(`${gruppoId}::${normalizeKey(nomeInsegna)}::${normalizeKey(comune)}::${normalizeKey(indirizzo)}`);
+      }
+      if (!existingId) {
+        const prefix = `${gruppoId}::${normalizeKey(nomeInsegna)}::`;
+        const matches = [...ctx.pdvByKeyDetailed.entries()].filter(([k]) => k.startsWith(prefix));
+        if (matches.length === 1) existingId = matches[0][1];
+        else if (matches.length > 1) {
+          return { ok: false, error: `"${nomeInsegna}" corrisponde a ${matches.length} punti vendita diversi in questo gruppo: aggiungi comune/indirizzo nel file per distinguerli` };
+        }
+      }
+
+      const agenteId = row.agente ? resolveAgenteId(ctx, s(row.agente), warnings) : null;
+
+      if (existingId) {
+        // Update parziale: tocca solo i campi che questa riga valorizza
+        // davvero, cosi' un file con sole 2-3 colonne (es. solo l'agente)
+        // non sovrascrive con vuoto/default gli altri campi gia' censiti.
+        const patch = {};
+        if (row.indirizzo) patch.indirizzo = indirizzo;
+        if (row.comune) patch.comune = comune;
+        if (row.provincia) patch.provincia = s(row.provincia).toUpperCase();
+        if (row.cap) patch.cap = s(row.cap);
+        if (row.stato) patch.stato = normStato(row.stato, ["servito", "non_servito", "target", "sospeso"], "non_servito");
+        if (row.agente) patch.agente_id = agenteId;
+        if (row.data_attivazione) patch.data_attivazione = parseDateLoose(row.data_attivazione);
+        if (row.note) patch.note = s(row.note);
+        if (Object.keys(patch).length) await updateRow("punti_vendita", existingId, patch);
+      } else {
+        const payload = {
+          gruppo_id: gruppoId,
+          nome_insegna: nomeInsegna,
+          indirizzo,
+          comune,
+          provincia: s(row.provincia).toUpperCase() || null,
+          cap: s(row.cap) || null,
+          stato: normStato(row.stato, ["servito", "non_servito", "target", "sospeso"], "non_servito"),
+          agente_id: agenteId,
+          data_attivazione: parseDateLoose(row.data_attivazione),
+          note: s(row.note) || null,
+        };
         const created = await insertRow("punti_vendita", payload);
-        ctx.pdvByKeyDetailed.set(key, created.id);
+        ctx.pdvByKeyDetailed.set(`${gruppoId}::${normalizeKey(nomeInsegna)}::${normalizeKey(comune)}::${normalizeKey(indirizzo)}`, created.id);
         ctx.pdvByKey.set(`${gruppoId}::${normalizeKey(nomeInsegna)}`, created.id);
       }
       return { ok: true, warnings };
