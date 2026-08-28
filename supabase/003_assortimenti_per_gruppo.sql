@@ -25,5 +25,31 @@ drop index if exists idx_assortimenti_pdv;
 
 alter table public.assortimenti drop column if exists punto_vendita_id;
 
+-- Prima del refactor lo stesso articolo poteva comparire una volta per ogni
+-- punto vendita del gruppo: ora che la chiave e' gruppo+articolo servono
+-- doppioni da eliminare, altrimenti il vincolo unique sotto fallisce.
+-- Si tiene una sola riga per (gruppo_id, articolo_id): quella con lo stato
+-- "migliore" (attivo prima di tutto) e, a parita', la piu' vecchia (id piu' basso).
+with ranked as (
+  select id, gruppo_id, articolo_id,
+    row_number() over (
+      partition by gruppo_id, articolo_id
+      order by
+        case stato
+          when 'attivo' then 0
+          when 'proposto' then 1
+          when 'in_trattativa' then 2
+          when 'sospeso' then 3
+          when 'rifiutato' then 4
+          else 5
+        end,
+        id
+    ) as rn
+  from public.assortimenti
+)
+delete from public.assortimenti a
+using ranked r
+where a.id = r.id and r.rn > 1;
+
 alter table public.assortimenti add constraint assortimenti_gruppo_id_articolo_id_key unique (gruppo_id, articolo_id);
 create index if not exists idx_assortimenti_gruppo on public.assortimenti(gruppo_id);
