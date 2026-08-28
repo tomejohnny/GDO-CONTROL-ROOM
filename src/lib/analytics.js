@@ -81,7 +81,8 @@ export function coperturaAssortimentoPerPdv(gruppoId, assortimenti, vendite, pun
         pdvAcquirenti: pdvGruppo.filter(p => acquirenti.has(p.id)),
         pdvNonAcquirenti: pdvGruppo.filter(p => !acquirenti.has(p.id)),
       };
-    });
+    })
+    .sort((a, b) => b.pdvAcquirenti.length - a.pdvAcquirenti.length);
 }
 
 // Articoli attivi nell'assortimento di 2 o più gruppi: per ognuno, quanto
