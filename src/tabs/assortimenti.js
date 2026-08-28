@@ -7,6 +7,7 @@ import { notifyDataChanged } from "../lib/bus.js";
 import { confirmDialog } from "../lib/confirm.js";
 import { downloadCsv } from "../lib/export.js";
 import { assortimentiSenzaVendite, venditeSenzaAssortimento, coperturaAssortimentoPerPdv } from "../lib/analytics.js";
+import { normalizeCodice } from "../lib/import-engine.js";
 
 let editingArticoloId = null;
 let selectedGruppoMain = null;
@@ -87,22 +88,16 @@ async function onSubmitArticolo(event) {
   }
 }
 
-// Chiave "fuzzy" per trovare articoli quasi-identici a catalogo: import da
-// fonti diverse (PDF, Excel) hanno prodotto duplicati con differenze minime
-// — maiuscole/minuscole, uno zero iniziale sul codice perso da Excel, un
-// marcatore "(P)"/"(T)" presente in una fonte e assente nell'altra. Il
-// codice articolo da solo non basta (a volte è proprio quello a differire),
-// quindi qui si confronta la descrizione ripulita di questi dettagli.
-function articoloFuzzyKey(a) {
-  let d = (a.descrizione || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-  d = d.replace(/\(p\)|\(t\)/g, "");
-  return d.replace(/[^a-z0-9]/g, "");
-}
-
+// Chiave per trovare articoli duplicati a catalogo: il confronto e' sul
+// CODICE articolo (ignorando solo differenze innocue come zeri iniziali
+// persi da Excel), non sulla descrizione. Due codici che differiscono per
+// altro — es. uno "T" finale — sono ordinativi distinti nel gestionale
+// anche se la descrizione testuale coincide, quindi vanno lasciati separati.
 function duplicatiArticoli() {
   const byKey = new Map();
   getState().articoli.forEach(a => {
-    const key = articoloFuzzyKey(a);
+    if (!a.codice) return;
+    const key = normalizeCodice(a.codice);
     if (!key) return;
     if (!byKey.has(key)) byKey.set(key, []);
     byKey.get(key).push(a);
@@ -260,7 +255,7 @@ function renderGlobalTable() {
   const rows = globalFilteredRows();
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="5" class="empty-state">Nessun assortimento trovato con questi filtri.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Nessun assortimento trovato con questi filtri.</td></tr>`;
     return;
   }
 
@@ -270,6 +265,7 @@ function renderGlobalTable() {
     return `<tr>
       <td>${escapeHtml(gruppo?.nome || "—")}</td>
       <td>${escapeHtml(articolo?.descrizione || "—")}</td>
+      <td class="text-muted">${escapeHtml(articolo?.codice || "—")}</td>
       <td>${statoBadge(STATO_ASSORTIMENTO, row.stato)}</td>
       <td>${formatDate(row.data_inizio)}</td>
       <td style="text-align:center"><button class="btn btn-red btn-sm" data-as-delete="${row.id}">Elimina</button></td>
@@ -297,13 +293,14 @@ function renderDisallineamenti() {
   const elA = document.getElementById("as-senza-vendite");
   elA.innerHTML = senzaVendite.length ? `
     <table class="desktop-table">
-      <thead><tr><th>Gruppo</th><th>Articolo</th></tr></thead>
+      <thead><tr><th>Gruppo</th><th>Articolo</th><th>Codice</th></tr></thead>
       <tbody>
         ${senzaVendite.slice(0, 20).map(a => {
           const articolo = articoloById(a.articolo_id);
           return `<tr>
             <td>${escapeHtml(gruppoById(a.gruppo_id)?.nome || "—")}</td>
             <td>${escapeHtml(articolo?.descrizione || "—")}</td>
+            <td class="text-muted">${escapeHtml(articolo?.codice || "—")}</td>
           </tr>`;
         }).join("")}
       </tbody>
@@ -315,13 +312,14 @@ function renderDisallineamenti() {
   const elB = document.getElementById("as-senza-assortimento");
   elB.innerHTML = senzaAssortimento.length ? `
     <table class="desktop-table">
-      <thead><tr><th>Gruppo</th><th>Articolo</th><th style="text-align:right">Valore</th></tr></thead>
+      <thead><tr><th>Gruppo</th><th>Articolo</th><th>Codice</th><th style="text-align:right">Valore</th></tr></thead>
       <tbody>
         ${senzaAssortimento.slice(0, 20).map(v => {
           const articolo = articoloById(v.articolo_id);
           return `<tr>
             <td>${escapeHtml(gruppoById(v.gruppo_id)?.nome || "—")}</td>
             <td>${escapeHtml(articolo?.descrizione || "—")}</td>
+            <td class="text-muted">${escapeHtml(articolo?.codice || "—")}</td>
             <td style="text-align:right" class="amount">${money(v.valore_euro)}</td>
           </tr>`;
         }).join("")}
@@ -371,7 +369,7 @@ export function render() {
         </div>
         <div style="overflow-x:auto">
           <table class="desktop-table">
-            <thead><tr><th>Articolo</th><th>Categoria</th><th>Stato</th><th>Data inizio</th><th>Note</th><th style="text-align:center">Azioni</th></tr></thead>
+            <thead><tr><th>Articolo</th><th>Codice</th><th>Categoria</th><th>Stato</th><th>Data inizio</th><th>Note</th><th style="text-align:center">Azioni</th></tr></thead>
             <tbody id="as-sel-table-body"></tbody>
           </table>
         </div>
@@ -411,7 +409,7 @@ export function render() {
         </div>
         <div style="overflow-x:auto">
           <table class="desktop-table">
-            <thead><tr><th>Gruppo</th><th>Articolo</th><th>Stato</th><th>Data inizio</th><th style="text-align:center">Azioni</th></tr></thead>
+            <thead><tr><th>Gruppo</th><th>Articolo</th><th>Codice</th><th>Stato</th><th>Data inizio</th><th style="text-align:center">Azioni</th></tr></thead>
             <tbody id="as-g-table-body"></tbody>
           </table>
         </div>
@@ -542,7 +540,10 @@ function renderConfrontoGruppi(gruppoAId, gruppoBId) {
   const nomeB = gruppoById(gruppoBId)?.nome || "—";
 
   const list = ids => ids.length
-    ? `<ul style="margin:0;padding-left:18px;font-size:0.82rem;max-height:260px;overflow-y:auto">${ids.map(id => `<li>${escapeHtml(articoloById(id)?.descrizione || "—")}</li>`).join("")}</ul>`
+    ? `<ul style="margin:0;padding-left:18px;font-size:0.82rem;max-height:260px;overflow-y:auto">${ids.map(id => {
+        const a = articoloById(id);
+        return `<li>${escapeHtml(a?.descrizione || "—")}${a?.codice ? ` <span class="text-muted">(${escapeHtml(a.codice)})</span>` : ""}</li>`;
+      }).join("")}</ul>`
     : `<p class="hint" style="margin:0">Nessuno</p>`;
 
   el.innerHTML = `
@@ -578,7 +579,7 @@ export function renderAssortimentoGruppo(gruppoId) {
       <button class="btn btn-sm" id="gd-as-add">+ Aggiungi articolo</button>
     </div>
     <table class="desktop-table">
-      <thead><tr><th>Articolo</th><th>Categoria</th><th>Stato</th><th>Data inizio</th><th>Note</th><th style="text-align:center">Azioni</th></tr></thead>
+      <thead><tr><th>Articolo</th><th>Codice</th><th>Categoria</th><th>Stato</th><th>Data inizio</th><th>Note</th><th style="text-align:center">Azioni</th></tr></thead>
       <tbody id="gd-as-table-body"></tbody>
     </table>
     <h3 style="margin-top:20px;font-size:0.95rem">Copertura sui punti vendita</h3>
@@ -597,7 +598,7 @@ function renderAssortimentoGruppoTable(gruppoId, tbodyId = "gd-as-table-body") {
   const rows = getState().assortimenti.filter(r => String(r.gruppo_id) === String(gruppoId));
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Nessun articolo in assortimento o in proposta per questo gruppo.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Nessun articolo in assortimento o in proposta per questo gruppo.</td></tr>`;
     return;
   }
 
@@ -605,6 +606,7 @@ function renderAssortimentoGruppoTable(gruppoId, tbodyId = "gd-as-table-body") {
     const articolo = articoloById(row.articolo_id);
     return `<tr>
       <td><strong>${escapeHtml(articolo?.descrizione || "—")}</strong></td>
+      <td class="text-muted">${escapeHtml(articolo?.codice || "—")}</td>
       <td>${escapeHtml(CATEGORIE_ARTICOLO[articolo?.categoria] || "—")}</td>
       <td>
         <select class="as-stato-select" data-as-id="${row.id}" style="font-size:0.75rem;padding:4px 6px;border-radius:6px;border:1px solid var(--border-color)">
@@ -638,6 +640,7 @@ function renderCoperturaPdv(gruppoId) {
     return `<details style="margin-bottom:8px;border:1px solid var(--border-color);border-radius:8px;padding:8px 12px">
       <summary style="cursor:pointer;font-size:0.85rem">
         <strong>${escapeHtml(articolo?.descrizione || "—")}</strong>
+        ${articolo?.codice ? `<span class="text-muted">(${escapeHtml(articolo.codice)})</span>` : ""}
         — <span style="color:var(--accent-green)">${c.pdvAcquirenti.length} acquistano</span>
         / <span style="color:var(--text-muted)">${c.pdvNonAcquirenti.length} non acquistano</span>
         su ${totale} punti vendita
