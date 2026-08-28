@@ -87,9 +87,13 @@ export function lineChart({ points, width = 600, height = 180, color = "var(--ac
   const linePath = coords.map((c, i) => (i === 0 ? "M" : "L") + c[0].toFixed(1) + "," + c[1].toFixed(1)).join(" ");
   const areaPath = `${linePath} L${(padding.left + chartW).toFixed(1)},${(padding.top + chartH).toFixed(1)} L${padding.left.toFixed(1)},${(padding.top + chartH).toFixed(1)} Z`;
 
-  const labels = points.map((p, i) =>
-    `<text x="${coords[i][0].toFixed(1)}" y="${height - 4}" font-size="9" fill="var(--text-muted)" text-anchor="middle">${escapeHtml(p.label || "")}</text>`
-  ).join("");
+  // Le etichette del primo e ultimo punto sono ancorate al bordo del grafico:
+  // centrarle (text-anchor middle) le farebbe sporgere fuori dal viewBox e
+  // tagliare a metà. Le si ancora invece verso l'interno.
+  const labels = points.map((p, i) => {
+    const anchor = i === 0 ? "start" : i === points.length - 1 ? "end" : "middle";
+    return `<text x="${coords[i][0].toFixed(1)}" y="${height - 4}" font-size="9" fill="var(--text-muted)" text-anchor="${anchor}">${escapeHtml(p.label || "")}</text>`;
+  }).join("");
 
   return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" preserveAspectRatio="xMidYMid meet">
     <path d="${areaPath}" fill="${fill}" stroke="none"/>

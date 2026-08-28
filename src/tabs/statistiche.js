@@ -347,11 +347,7 @@ export function render() {
         <div class="kpi-card green">
           <div class="kpi-title">Margine</div>
           <div class="kpi-value" id="st-kpi-margine">€ 0,00</div>
-        </div>
-        <div class="kpi-card green">
-          <div class="kpi-title">Margine % medio</div>
-          <div class="kpi-value" id="st-kpi-margine-pct">0,0%</div>
-          <div class="kpi-sub">Margine sul fatturato del periodo</div>
+          <div class="kpi-sub"><span id="st-kpi-margine-pct">0,0%</span> sul fatturato del periodo</div>
         </div>
       </div>
     </div>
