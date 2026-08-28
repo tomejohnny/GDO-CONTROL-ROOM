@@ -12,6 +12,7 @@ let editingArticoloId = null;
 let selectedGruppoMain = null;
 let cmpGruppoA = null;
 let cmpGruppoB = null;
+let activeAssortSubtab = "as-tab-gruppo";
 
 // ============================================================= CATALOGO ===
 
@@ -342,104 +343,135 @@ async function onDeleteAssortimento(id) {
   }
 }
 
+function switchAssortSubview(container, id) {
+  activeAssortSubtab = id;
+  container.querySelectorAll(".subtab-btn").forEach(b => b.classList.toggle("active", b.dataset.subview === id));
+  container.querySelectorAll(".subview").forEach(v => v.classList.toggle("active", v.id === id));
+}
+
 export function render() {
   const container = document.getElementById("assortimenti-content");
   if (!container) return;
 
   const gruppi = [...getState().gruppi].sort((a, b) => a.nome.localeCompare(b.nome));
   container.innerHTML = `
-    <div class="card" id="as-senza-gruppo-card" style="display:none;border-color:var(--accent-red)">
-      <h2>
-        <span>⚠ Righe con gruppo non riconosciuto (<span id="as-senza-gruppo-count">0</span>)</span>
-        <button class="btn btn-red btn-sm" id="as-senza-gruppo-delete-all">Elimina tutte</button>
-      </h2>
-      <p class="hint">Queste righe di assortimento puntano a un gruppo GDO che non esiste più (nome cambiato, gruppo eliminato, o un refuso di import). Controlla se sono da eliminare o se manca solo un gruppo da ricreare.</p>
-      <div style="overflow-x:auto">
-        <table class="desktop-table">
-          <thead><tr><th>ID gruppo grezzo</th><th>Articolo</th><th>Stato</th><th style="text-align:center">Azioni</th></tr></thead>
-          <tbody id="as-senza-gruppo-body"></tbody>
-        </table>
-      </div>
-      <p class="hint" id="as-senza-gruppo-more" style="margin-top:8px;margin-bottom:0"></p>
-    </div>
     <div class="card">
-      <h2>
-        <span>Catalogo articoli</span>
-        <button class="btn btn-sm" id="as-art-new">+ Nuovo articolo</button>
-      </h2>
-      <table class="desktop-table">
-        <thead><tr><th>Articolo</th><th>Categoria</th><th>U.M.</th><th>Stato</th><th style="text-align:center">Azioni</th></tr></thead>
-        <tbody id="as-articoli-table-body">${getState().articoli.map(articoloRow).join("") || `<tr><td colspan="5" class="empty-state">Nessun articolo a catalogo. Aggiungine uno per iniziare.</td></tr>`}</tbody>
-      </table>
-    </div>
-    <div class="card" id="as-dup-card" style="display:none">
-      <h2>⚠ Possibili articoli duplicati a catalogo (<span id="as-dup-count">0</span>)</h2>
-      <p class="hint">Stesso prodotto importato più volte con piccole differenze (maiuscole, zero iniziale sul codice, marcatore "(P)"). Scegli quale versione tenere e unisci le altre: assortimenti e vendite vengono spostati automaticamente su quella scelta.</p>
-      <div id="as-dup-list"></div>
-    </div>
-    <div class="card">
-      <h2>Assortimento per gruppo</h2>
-      <p class="hint">Seleziona un gruppo per vedere, modificare e integrare il suo assortimento senza dover passare dalla scheda del gruppo.</p>
-      <div class="filter-bar">
-        <select id="as-sel-gruppo">${gruppi.map(g => `<option value="${g.id}" ${String(g.id) === String(selectedGruppoMain) ? "selected" : ""}>${escapeHtml(g.nome)}</option>`).join("")}</select>
-        <button class="btn btn-sm" id="as-sel-add">+ Aggiungi articolo</button>
+      <div class="subtabs">
+        <button class="subtab-btn ${activeAssortSubtab === "as-tab-gruppo" ? "active" : ""}" data-subview="as-tab-gruppo">Per gruppo</button>
+        <button class="subtab-btn ${activeAssortSubtab === "as-tab-confronto" ? "active" : ""}" data-subview="as-tab-confronto">Confronta gruppi</button>
+        <button class="subtab-btn ${activeAssortSubtab === "as-tab-ricerca" ? "active" : ""}" data-subview="as-tab-ricerca">Ricerca globale</button>
+        <button class="subtab-btn ${activeAssortSubtab === "as-tab-dati" ? "active" : ""}" data-subview="as-tab-dati">Dati &amp; catalogo<span id="as-tab-dati-badge"></span></button>
       </div>
-      <div style="overflow-x:auto">
-        <table class="desktop-table">
-          <thead><tr><th>Articolo</th><th>Categoria</th><th>Stato</th><th>Data inizio</th><th>Note</th><th style="text-align:center">Azioni</th></tr></thead>
-          <tbody id="as-sel-table-body"></tbody>
-        </table>
+
+      <div id="as-tab-gruppo" class="subview ${activeAssortSubtab === "as-tab-gruppo" ? "active" : ""}">
+        <p class="hint">Seleziona un gruppo per vedere, modificare e integrare il suo assortimento senza dover passare dalla scheda del gruppo.</p>
+        <div class="filter-bar">
+          <select id="as-sel-gruppo">${gruppi.map(g => `<option value="${g.id}" ${String(g.id) === String(selectedGruppoMain) ? "selected" : ""}>${escapeHtml(g.nome)}</option>`).join("")}</select>
+          <button class="btn btn-sm" id="as-sel-add">+ Aggiungi articolo</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="desktop-table">
+            <thead><tr><th>Articolo</th><th>Categoria</th><th>Stato</th><th>Data inizio</th><th>Note</th><th style="text-align:center">Azioni</th></tr></thead>
+            <tbody id="as-sel-table-body"></tbody>
+          </table>
+        </div>
       </div>
-    </div>
-    <div class="card">
-      <h2>Confronta due gruppi</h2>
-      <p class="hint">Articoli attivi in comune tra due gruppi, e quelli tenuti solo dall'uno o dall'altro — utile per proporre a un gruppo quello che un cliente simile già acquista.</p>
-      <div class="filter-bar">
-        <select id="as-cmp-a"></select>
-        <span class="text-muted">vs</span>
-        <select id="as-cmp-b"></select>
+
+      <div id="as-tab-confronto" class="subview ${activeAssortSubtab === "as-tab-confronto" ? "active" : ""}">
+        <p class="hint">Articoli attivi in comune tra due gruppi, e quelli tenuti solo dall'uno o dall'altro — utile per proporre a un gruppo quello che un cliente simile già acquista.</p>
+        <div class="filter-bar">
+          <select id="as-cmp-a"></select>
+          <span class="text-muted">vs</span>
+          <select id="as-cmp-b"></select>
+        </div>
+        <div id="as-cmp-result"></div>
       </div>
-      <div id="as-cmp-result"></div>
-    </div>
-    <div class="card">
-      <h2>
-        <span>Assortimenti — vista trasversale</span>
-        <button class="btn btn-ghost btn-sm" id="as-g-export">⇩ Esporta CSV</button>
-      </h2>
-      <p class="hint">Quali articoli sono in assortimento per ciascun gruppo GDO, e a che punto sono le proposte in corso.</p>
-      <div class="filter-bar">
-        <input id="as-g-search" placeholder="Cerca articolo o gruppo">
-        <select id="as-g-filter-gruppo"><option value="">Tutti i gruppi</option>${gruppi.map(g => `<option value="${g.id}">${escapeHtml(g.nome)}</option>`).join("")}</select>
-        <select id="as-g-filter-categoria">
-          <option value="">Tutte le categorie</option>
-          ${Object.entries(CATEGORIE_ARTICOLO).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}
-        </select>
-        <select id="as-g-filter-stato">
-          <option value="">Tutti gli stati</option>
-          <option value="attivo">Attivo</option>
-          <option value="proposto">Proposto</option>
-          <option value="in_trattativa">In trattativa</option>
-          <option value="rifiutato">Rifiutato</option>
-          <option value="sospeso">Sospeso</option>
-        </select>
+
+      <div id="as-tab-ricerca" class="subview ${activeAssortSubtab === "as-tab-ricerca" ? "active" : ""}">
+        <h2>
+          <span>Assortimenti — vista trasversale</span>
+          <button class="btn btn-ghost btn-sm" id="as-g-export">⇩ Esporta CSV</button>
+        </h2>
+        <p class="hint">Quali articoli sono in assortimento per ciascun gruppo GDO, e a che punto sono le proposte in corso.</p>
+        <div class="filter-bar">
+          <input id="as-g-search" placeholder="Cerca articolo o gruppo">
+          <select id="as-g-filter-gruppo"><option value="">Tutti i gruppi</option>${gruppi.map(g => `<option value="${g.id}">${escapeHtml(g.nome)}</option>`).join("")}</select>
+          <select id="as-g-filter-categoria">
+            <option value="">Tutte le categorie</option>
+            ${Object.entries(CATEGORIE_ARTICOLO).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}
+          </select>
+          <select id="as-g-filter-stato">
+            <option value="">Tutti gli stati</option>
+            <option value="attivo">Attivo</option>
+            <option value="proposto">Proposto</option>
+            <option value="in_trattativa">In trattativa</option>
+            <option value="rifiutato">Rifiutato</option>
+            <option value="sospeso">Sospeso</option>
+          </select>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="desktop-table">
+            <thead><tr><th>Gruppo</th><th>Articolo</th><th>Stato</th><th>Data inizio</th><th style="text-align:center">Azioni</th></tr></thead>
+            <tbody id="as-g-table-body"></tbody>
+          </table>
+        </div>
       </div>
-      <table class="desktop-table">
-        <thead><tr><th>Gruppo</th><th>Articolo</th><th>Stato</th><th>Data inizio</th><th style="text-align:center">Azioni</th></tr></thead>
-        <tbody id="as-g-table-body"></tbody>
-      </table>
-    </div>
-    <div class="grid-2">
-      <div class="card">
-        <h2>Assortimento senza venduto</h2>
-        <p class="hint">Articoli "attivo" nell'assortimento di un gruppo, ma senza nessuna vendita registrata su nessun suo punto vendita — possibile disallineamento.</p>
-        <div id="as-senza-vendite"></div>
-      </div>
-      <div class="card">
-        <h2>Venduto non tracciato in assortimento</h2>
-        <p class="hint">Vendite reali su combinazioni gruppo + articolo che non risultano in nessun assortimento.</p>
-        <div id="as-senza-assortimento"></div>
+
+      <div id="as-tab-dati" class="subview ${activeAssortSubtab === "as-tab-dati" ? "active" : ""}">
+        <div id="as-senza-gruppo-card" style="display:none;border:1px solid var(--accent-red);border-radius:10px;padding:14px;margin-bottom:16px">
+          <h2 style="border:none;padding-bottom:0;margin-bottom:8px">
+            <span>⚠ Righe con gruppo non riconosciuto (<span id="as-senza-gruppo-count">0</span>)</span>
+            <button class="btn btn-red btn-sm" id="as-senza-gruppo-delete-all">Elimina tutte</button>
+          </h2>
+          <p class="hint">Queste righe di assortimento puntano a un gruppo GDO che non esiste più (nome cambiato, gruppo eliminato, o un refuso di import). Controlla se sono da eliminare o se manca solo un gruppo da ricreare.</p>
+          <div style="overflow-x:auto">
+            <table class="desktop-table">
+              <thead><tr><th>ID gruppo grezzo</th><th>Articolo</th><th>Stato</th><th style="text-align:center">Azioni</th></tr></thead>
+              <tbody id="as-senza-gruppo-body"></tbody>
+            </table>
+          </div>
+          <p class="hint" id="as-senza-gruppo-more" style="margin-top:8px;margin-bottom:0"></p>
+        </div>
+
+        <div id="as-dup-card" style="display:none;margin-bottom:16px">
+          <h2 style="border:none;padding-bottom:0;margin-bottom:8px">⚠ Possibili articoli duplicati a catalogo (<span id="as-dup-count">0</span>)</h2>
+          <p class="hint">Stesso prodotto importato più volte con piccole differenze (maiuscole, zero iniziale sul codice, marcatore "(P)"). Scegli quale versione tenere e unisci le altre: assortimenti e vendite vengono spostati automaticamente su quella scelta.</p>
+          <div id="as-dup-list"></div>
+        </div>
+
+        <div class="grid-2">
+          <div>
+            <h2 style="border:none;padding-bottom:0;margin-bottom:8px">Assortimento senza venduto</h2>
+            <p class="hint">Articoli "attivo" nell'assortimento di un gruppo, ma senza nessuna vendita registrata su nessun suo punto vendita — possibile disallineamento.</p>
+            <div id="as-senza-vendite"></div>
+          </div>
+          <div>
+            <h2 style="border:none;padding-bottom:0;margin-bottom:8px">Venduto non tracciato in assortimento</h2>
+            <p class="hint">Vendite reali su combinazioni gruppo + articolo che non risultano in nessun assortimento.</p>
+            <div id="as-senza-assortimento"></div>
+          </div>
+        </div>
+
+        <details style="margin-top:16px">
+          <summary style="cursor:pointer;font-weight:700;font-size:0.95rem">Catalogo articoli (avanzato)</summary>
+          <div style="margin-top:12px">
+            <div class="filter-bar" style="justify-content:flex-end">
+              <button class="btn btn-sm" id="as-art-new">+ Nuovo articolo</button>
+            </div>
+            <div style="overflow-x:auto">
+              <table class="desktop-table">
+                <thead><tr><th>Articolo</th><th>Categoria</th><th>U.M.</th><th>Stato</th><th style="text-align:center">Azioni</th></tr></thead>
+                <tbody id="as-articoli-table-body">${getState().articoli.map(articoloRow).join("") || `<tr><td colspan="5" class="empty-state">Nessun articolo a catalogo. Aggiungine uno per iniziare.</td></tr>`}</tbody>
+              </table>
+            </div>
+          </div>
+        </details>
       </div>
     </div>`;
+
+  container.querySelectorAll(".subtab-btn").forEach(btn => {
+    btn.addEventListener("click", () => switchAssortSubview(container, btn.dataset.subview));
+  });
 
   wireArticoloActions(container);
   document.getElementById("as-art-new").addEventListener("click", () => openArticoloModal(null));
@@ -481,6 +513,15 @@ export function render() {
   renderDisallineamenti();
   renderSenzaGruppo();
   renderDuplicatiArticoli();
+  updateDatiBadge();
+}
+
+function updateDatiBadge() {
+  const badge = document.getElementById("as-tab-dati-badge");
+  if (!badge) return;
+  const count = senzaGruppoRows().length + duplicatiArticoli().length;
+  badge.textContent = count ? ` ⚠ ${count}` : "";
+  badge.style.color = count ? "var(--accent-red)" : "";
 }
 
 function renderConfrontoGruppi(gruppoAId, gruppoBId) {
