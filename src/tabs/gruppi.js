@@ -50,8 +50,8 @@ function renderLista() {
       <td><span class="row-link" data-open="${g.id}">${escapeHtml(g.nome)}</span></td>
       <td>${escapeHtml(g.area_geografica || "—")}</td>
       <td>${statoBadge(STATO_GRUPPO, g.stato)}</td>
-      <td>${serviti} / ${totale}</td>
-      <td>${pct.toFixed(1)}%</td>
+      <td>${totale ? `${serviti} / ${totale}` : "—"}</td>
+      <td>${totale ? `${pct.toFixed(1)}%` : "—"}</td>
       <td>${escapeHtml(g.referente_buyer || "—")}</td>
       <td style="text-align:center">
         <button class="btn btn-ghost btn-sm" data-edit="${g.id}">Modifica</button>
@@ -66,7 +66,7 @@ function renderLista() {
         <span class="row-link m-card-title" data-open="${g.id}">${escapeHtml(g.nome)}</span>
         ${statoBadge(STATO_GRUPPO, g.stato)}
       </div>
-      <div style="font-size:0.75rem;color:var(--text-muted)">${escapeHtml(g.area_geografica || "—")} · PdV ${serviti}/${totale} (${pct.toFixed(1)}%)</div>
+      <div style="font-size:0.75rem;color:var(--text-muted)">${escapeHtml(g.area_geografica || "—")} · ${totale ? `PdV ${serviti}/${totale} (${pct.toFixed(1)}%)` : "senza punti vendita"}</div>
       <div class="m-card-details">
         <span>${escapeHtml(g.referente_buyer || "—")}</span>
         <div style="display:flex;gap:6px">
@@ -188,8 +188,8 @@ function renderDetail() {
   document.getElementById("gd-kpi-buyer").textContent = g.referente_buyer || "Nessun referente registrato";
 
   const { totale, serviti, pct } = coperturaGruppo(g.id, getState().puntiVendita);
-  document.getElementById("gd-kpi-pdv").textContent = `${serviti} / ${totale}`;
-  document.getElementById("gd-kpi-pdv-sub").textContent = `Copertura ${pct.toFixed(1)}%`;
+  document.getElementById("gd-kpi-pdv").textContent = totale ? `${serviti} / ${totale}` : "—";
+  document.getElementById("gd-kpi-pdv-sub").textContent = totale ? `Copertura ${pct.toFixed(1)}%` : "Gruppo senza punti vendita (gestito a magazzino centrale)";
 
   const venditeGruppo = getState().vendite.filter(v => String(v.gruppo_id) === String(g.id));
   document.getElementById("gd-kpi-fatturato").textContent = money(fatturatoUltimi12Mesi(venditeGruppo));
