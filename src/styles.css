@@ -158,6 +158,15 @@ h1, h2, .brand-name, .login-box h1 { font-family: "Cormorant Garamond", Georgia,
 .subview, .subview-nested { display: none; }
 .subview.active, .subview-nested.active { display: block; }
 
+/* ---------- Dettatura vocale ---------- */
+.mic-btn { position: absolute; top: 7px; right: 7px; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border-color); background: var(--bg-card); cursor: pointer; font-size: 0.8rem; display: flex; align-items: center; justify-content: center; padding: 0; line-height: 1; }
+.mic-btn:hover { background: var(--bg-secondary); }
+.mic-btn.recording { background: var(--accent-red); border-color: var(--accent-red); color: #fff; animation: mic-pulse 1.2s infinite; }
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(200, 60, 60, 0.45); }
+  50% { box-shadow: 0 0 0 6px rgba(200, 60, 60, 0); }
+}
+
 /* ---------- Modal ---------- */
 .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(16, 26, 44, 0.5); justify-content: center; align-items: center; z-index: 1000; padding: 15px; }
 .modal-overlay.open { display: flex; }

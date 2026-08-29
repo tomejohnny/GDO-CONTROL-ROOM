@@ -7,6 +7,7 @@ import { toastError } from "./lib/ui.js";
 import { onDataChanged } from "./lib/bus.js";
 import { initPdvShared } from "./lib/pdv-shared.js";
 import { initConfirm } from "./lib/confirm.js";
+import { attachDictation } from "./lib/dictation.js";
 
 import { render as renderDashboard } from "./tabs/dashboard.js";
 import { render as renderGruppi, initGruppi } from "./tabs/gruppi.js";
@@ -89,6 +90,7 @@ async function bootstrap(user) {
     initAssortimenti();
     initPdvShared();
     initConfirm();
+    attachDictation("at-descrizione", "at-descrizione-mic");
     wireModals();
     wireNav();
     wireLogout();

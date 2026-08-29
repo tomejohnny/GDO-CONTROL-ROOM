@@ -400,7 +400,13 @@
                 <div class="form-group"><label>Tipo</label>
                     <select id="at-tipo"><option value="nota">Nota</option><option value="chiamata">Chiamata</option><option value="visita">Visita</option><option value="task">Task</option></select>
                 </div>
-                <div class="form-group"><label>Descrizione</label><textarea id="at-descrizione" required placeholder="Es. Presentare mix categoria formaggi a Trento Nord"></textarea></div>
+                <div class="form-group">
+                    <label>Descrizione</label>
+                    <div style="position:relative">
+                        <textarea id="at-descrizione" required placeholder="Es. Presentare mix categoria formaggi a Trento Nord" style="padding-right:38px"></textarea>
+                        <button type="button" id="at-descrizione-mic" class="mic-btn" title="Detta a voce">🎤</button>
+                    </div>
+                </div>
                 <div class="flex-row">
                     <div class="form-group"><label>Responsabile</label><input type="text" id="at-responsabile"></div>
                     <div class="form-group"><label>Scadenza</label><input type="date" id="at-scadenza"></div>
