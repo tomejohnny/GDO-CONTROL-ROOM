@@ -196,6 +196,9 @@ function renderDetail() {
   const ultimoAggiornamento = ultimaDataVendite(venditeGruppo);
   document.getElementById("gd-kpi-fatturato-sub").textContent = ultimoAggiornamento ? `Da statistiche venduto (dati al ${formatDate(ultimoAggiornamento)})` : "Da statistiche venduto";
 
+  document.getElementById("gd-note-wrap").style.display = g.note ? "" : "none";
+  document.getElementById("gd-note").textContent = g.note || "";
+
   renderPdvSubview();
   renderAssortimentoGruppo(g.id);
   renderAttivitaSubview();
