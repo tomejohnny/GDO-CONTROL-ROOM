@@ -199,13 +199,18 @@
                         <button class="btn" id="pv-new">+ Nuovo punto vendita</button>
                     </div>
                     <div class="card" id="pv-attenzione-card" style="display:none">
-                        <h2>⚠ Punti vendita da sistemare (<span id="pv-attenzione-count">0</span>)</h2>
-                        <p class="hint">Hanno fatturato registrato (quindi sono clienti attivi a tutti gli effetti) ma risultano "non servito" e/o senza nessun agente in gestione. Sistema qui sotto senza dover aprire ogni scheda.</p>
-                        <div style="overflow-x:auto">
-                            <table class="desktop-table">
-                                <thead><tr><th>Insegna</th><th>Gruppo</th><th style="text-align:right">Fatturato</th><th>Stato</th><th>Agente</th></tr></thead>
-                                <tbody id="pv-attenzione-body"></tbody>
-                            </table>
+                        <h2>
+                            <span>⚠ Punti vendita da sistemare (<span id="pv-attenzione-count">0</span>)</span>
+                            <button class="btn btn-ghost btn-sm" id="pv-attenzione-toggle">▸ Espandi</button>
+                        </h2>
+                        <div id="pv-attenzione-wrap" style="display:none">
+                            <p class="hint">Hanno fatturato registrato (quindi sono clienti attivi a tutti gli effetti) ma risultano "non servito" e/o senza nessun agente in gestione. Sistema qui sotto senza dover aprire ogni scheda.</p>
+                            <div style="overflow-x:auto">
+                                <table class="desktop-table">
+                                    <thead><tr><th>Insegna</th><th>Gruppo</th><th style="text-align:right">Fatturato</th><th>Stato</th><th>Agente</th></tr></thead>
+                                    <tbody id="pv-attenzione-body"></tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                     <div class="card" id="pv-dup-card" style="display:none">

@@ -232,6 +232,8 @@ function puntiVenditaDaSistemare() {
     .sort((a, b) => b.fatturato - a.fatturato);
 }
 
+let attenzioneCollapsed = true;
+
 function renderPdvDaSistemare() {
   const card = document.getElementById("pv-attenzione-card");
   if (!card) return;
@@ -242,6 +244,8 @@ function renderPdvDaSistemare() {
   }
   card.style.display = "";
   document.getElementById("pv-attenzione-count").textContent = righe.length;
+  document.getElementById("pv-attenzione-wrap").style.display = attenzioneCollapsed ? "none" : "block";
+  document.getElementById("pv-attenzione-toggle").textContent = attenzioneCollapsed ? "▸ Espandi" : "▾ Comprimi";
   document.getElementById("pv-attenzione-body").innerHTML = righe.map(p => `<tr>
     <td><strong>${escapeHtml(p.nome_insegna)}</strong></td>
     <td>${escapeHtml(gruppoById(p.gruppo_id)?.nome || "—")}</td>
@@ -372,4 +376,8 @@ export function initPuntiVendita() {
     document.getElementById(id).addEventListener("change", render);
   });
   document.getElementById("pv-new").addEventListener("click", () => openPdvModal());
+  document.getElementById("pv-attenzione-toggle").addEventListener("click", () => {
+    attenzioneCollapsed = !attenzioneCollapsed;
+    renderPdvDaSistemare();
+  });
 }
