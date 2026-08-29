@@ -313,7 +313,7 @@ function renderContent() {
   document.getElementById("st-kpi-gruppi").textContent = gruppiCoinvolti;
   document.getElementById("st-kpi-righe").textContent = number(articoliVendutiSet.size);
   document.getElementById("st-kpi-copertura-assortimento").textContent = totaleAssortimento
-    ? `${number(totaleAssortimento)} in assortimento · ${number(nonMovimentati)} mai venduti · copertura ${percent(coperturaAssortimentoPct)}`
+    ? `Assortimento: ${number(totaleAssortimento)} art. · ${number(movimentati)} movimentati (${percent(coperturaAssortimentoPct)}) · ${number(nonMovimentati)} mai venduti`
     : "Nessun assortimento censito per questi filtri";
   document.getElementById("st-kpi-costo").textContent = money(totaleCosto);
   document.getElementById("st-kpi-margine").textContent = money(totaleMargine);
