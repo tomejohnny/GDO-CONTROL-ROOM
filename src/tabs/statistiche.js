@@ -257,7 +257,32 @@ function renderContent() {
   const totaleMargine = rows.reduce((s, v) => s + Number(v.margine_valore || 0), 0);
   const margineMedioPct = totaleValore ? (totaleMargine / totaleValore) * 100 : 0;
   const gruppiCoinvolti = new Set(rows.map(v => v.gruppo_id)).size;
-  const articoliVenduti = new Set(rows.filter(v => v.articolo_id != null).map(v => v.articolo_id)).size;
+  const articoliVendutiSet = new Set(rows.filter(v => v.articolo_id != null).map(v => v.articolo_id));
+
+  // Copertura assortimento: quanti degli articoli attivi in assortimento (per
+  // gli stessi gruppo/categoria filtrati sopra — la data non si applica,
+  // l'assortimento non è datato) hanno anche una vendita nel periodo. Non è
+  // un semplice "totale assortimento meno venduti": alcuni articoli venduti
+  // possono non essere nemmeno in assortimento (venduto informale), quindi
+  // serve l'intersezione vera tra i due insiemi.
+  const filtriAssortimento = filters();
+  const articoliAssortimentoSet = new Set(
+    getState().assortimenti
+      .filter(a => {
+        if (a.stato !== "attivo") return false;
+        if (filtriAssortimento.gruppo && String(a.gruppo_id) !== filtriAssortimento.gruppo) return false;
+        if (filtriAssortimento.categoria) {
+          const art = articoloById(a.articolo_id);
+          if (!art || art.categoria !== filtriAssortimento.categoria) return false;
+        }
+        return true;
+      })
+      .map(a => a.articolo_id)
+  );
+  const totaleAssortimento = articoliAssortimentoSet.size;
+  const movimentati = [...articoliAssortimentoSet].filter(id => articoliVendutiSet.has(id)).length;
+  const nonMovimentati = totaleAssortimento - movimentati;
+  const coperturaAssortimentoPct = totaleAssortimento ? (movimentati / totaleAssortimento) * 100 : 0;
 
   // Incidenza sul fatturato di tutti i gruppi nello stesso periodo/categoria
   // (ignora il filtro gruppo/PdV apposta: senza confronto con tutti gli
@@ -269,7 +294,10 @@ function renderContent() {
   document.getElementById("st-kpi-incidenza").textContent = `${percent(incidenzaPct)} del fatturato di tutti i gruppi`;
   document.getElementById("st-kpi-quantita").textContent = number(totaleQuantita);
   document.getElementById("st-kpi-gruppi").textContent = gruppiCoinvolti;
-  document.getElementById("st-kpi-righe").textContent = number(articoliVenduti);
+  document.getElementById("st-kpi-righe").textContent = number(articoliVendutiSet.size);
+  document.getElementById("st-kpi-copertura-assortimento").textContent = totaleAssortimento
+    ? `${number(totaleAssortimento)} in assortimento · ${number(nonMovimentati)} mai venduti · copertura ${percent(coperturaAssortimentoPct)}`
+    : "Nessun assortimento censito per questi filtri";
   document.getElementById("st-kpi-costo").textContent = money(totaleCosto);
   document.getElementById("st-kpi-margine").textContent = money(totaleMargine);
   document.getElementById("st-kpi-margine-pct").textContent = margineMedioPct.toLocaleString("it-IT", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "%";
@@ -401,6 +429,7 @@ export function render() {
         <div class="kpi-card">
           <div class="kpi-title">Articoli venduti</div>
           <div class="kpi-value" id="st-kpi-righe">0</div>
+          <div class="kpi-sub" id="st-kpi-copertura-assortimento"></div>
         </div>
         <div class="kpi-card">
           <div class="kpi-title">Costo di acquisto</div>
