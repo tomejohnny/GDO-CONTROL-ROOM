@@ -54,8 +54,8 @@ function renderLista() {
       <td>${totale ? `${pct.toFixed(1)}%` : "—"}</td>
       <td>${escapeHtml(g.referente_buyer || "—")}</td>
       <td style="text-align:center">
-        <button class="btn btn-ghost btn-sm" data-edit="${g.id}">Modifica</button>
-        <button class="btn btn-red btn-sm" data-delete="${g.id}">Elimina</button>
+        <button class="btn btn-ghost btn-sm rw-only" data-edit="${g.id}">Modifica</button>
+        <button class="btn btn-red btn-sm rw-only" data-delete="${g.id}">Elimina</button>
       </td>`;
     tbody.appendChild(tr);
 
@@ -70,8 +70,8 @@ function renderLista() {
       <div class="m-card-details">
         <span>${escapeHtml(g.referente_buyer || "—")}</span>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-ghost btn-sm" data-edit="${g.id}">Modifica</button>
-          <button class="btn btn-red btn-sm" data-delete="${g.id}">Elimina</button>
+          <button class="btn btn-ghost btn-sm rw-only" data-edit="${g.id}">Modifica</button>
+          <button class="btn btn-red btn-sm rw-only" data-delete="${g.id}">Elimina</button>
         </div>
       </div>`;
     mobile.appendChild(card);
@@ -239,8 +239,8 @@ function renderPdvSubview() {
       <td>${statoBadge(STATO_PDV, p.stato)}</td>
       <td>${escapeHtml(agente)}</td>
       <td style="text-align:center">
-        <button class="btn btn-ghost btn-sm" data-pdv-edit="${p.id}">Modifica</button>
-        <button class="btn btn-red btn-sm" data-pdv-delete="${p.id}">Elimina</button>
+        <button class="btn btn-ghost btn-sm rw-only" data-pdv-edit="${p.id}">Modifica</button>
+        <button class="btn btn-red btn-sm rw-only" data-pdv-delete="${p.id}">Elimina</button>
       </td>`;
     tbody.appendChild(tr);
 
@@ -255,8 +255,8 @@ function renderPdvSubview() {
       <div class="m-card-details">
         <span>Agente: ${escapeHtml(agente)}</span>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-ghost btn-sm" data-pdv-edit="${p.id}">Modifica</button>
-          <button class="btn btn-red btn-sm" data-pdv-delete="${p.id}">Elimina</button>
+          <button class="btn btn-ghost btn-sm rw-only" data-pdv-edit="${p.id}">Modifica</button>
+          <button class="btn btn-red btn-sm rw-only" data-pdv-delete="${p.id}">Elimina</button>
         </div>
       </div>`;
     mobile.appendChild(card);
@@ -284,8 +284,8 @@ function renderAttivitaSubview() {
       <div class="m-card-header">
         <span class="badge" style="background:${a.completato ? "var(--accent-green)" : "var(--accent-blue)"}">${TIPO_LABEL[a.tipo] || a.tipo}</span>
         <div style="display:flex;gap:6px">
-          ${a.tipo === "task" ? `<button class="btn btn-ghost btn-sm" data-toggle-attivita="${a.id}">${a.completato ? "Riapri" : "Completa"}</button>` : ""}
-          <button class="btn btn-red btn-sm" data-delete-attivita="${a.id}">Elimina</button>
+          ${a.tipo === "task" ? `<button class="btn btn-ghost btn-sm rw-only" data-toggle-attivita="${a.id}">${a.completato ? "Riapri" : "Completa"}</button>` : ""}
+          <button class="btn btn-red btn-sm rw-only" data-delete-attivita="${a.id}">Elimina</button>
         </div>
       </div>
       <div style="font-size:0.85rem;margin-top:4px">${escapeHtml(a.descrizione)}</div>

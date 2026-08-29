@@ -8,6 +8,7 @@ import { confirmDialog } from "../lib/confirm.js";
 import { downloadCsv } from "../lib/export.js";
 import { assortimentiSenzaVendite, venditeSenzaAssortimento, coperturaAssortimentoPerPdv } from "../lib/analytics.js";
 import { normalizeCodice } from "../lib/import-engine.js";
+import { isReadOnly } from "../lib/permissions.js";
 
 let editingArticoloId = null;
 let selectedGruppoMain = null;
@@ -24,8 +25,8 @@ function articoloRow(a) {
     <td>${escapeHtml(a.unita_misura || "—")}</td>
     <td>${a.attivo === false ? `<span class="badge" style="background:var(--text-muted)">Non attivo</span>` : `<span class="badge" style="background:var(--accent-green)">Attivo</span>`}</td>
     <td style="text-align:center">
-      <button class="btn btn-ghost btn-sm" data-art-edit="${a.id}">Modifica</button>
-      <button class="btn btn-red btn-sm" data-art-delete="${a.id}">Elimina</button>
+      <button class="btn btn-ghost btn-sm rw-only" data-art-edit="${a.id}">Modifica</button>
+      <button class="btn btn-red btn-sm rw-only" data-art-delete="${a.id}">Elimina</button>
     </td>
   </tr>`;
 }
@@ -274,7 +275,7 @@ function renderGlobalTable() {
       <td class="text-muted">${escapeHtml(articolo?.codice || "—")}</td>
       <td>${statoBadge(STATO_ASSORTIMENTO, row.stato)}</td>
       <td>${formatDate(row.data_inizio)}</td>
-      <td style="text-align:center"><button class="btn btn-red btn-sm" data-as-delete="${row.id}">Elimina</button></td>
+      <td style="text-align:center"><button class="btn btn-red btn-sm rw-only" data-as-delete="${row.id}">Elimina</button></td>
     </tr>`;
   }).join("");
 
@@ -371,7 +372,7 @@ export function render() {
         <p class="hint">Seleziona un gruppo per vedere, modificare e integrare il suo assortimento senza dover passare dalla scheda del gruppo.</p>
         <div class="filter-bar">
           <select id="as-sel-gruppo">${gruppi.map(g => `<option value="${g.id}" ${String(g.id) === String(selectedGruppoMain) ? "selected" : ""}>${escapeHtml(g.nome)}</option>`).join("")}</select>
-          <button class="btn btn-sm" id="as-sel-add">+ Aggiungi articolo</button>
+          <button class="btn btn-sm rw-only" id="as-sel-add">+ Aggiungi articolo</button>
         </div>
         <div style="overflow-x:auto">
           <table class="desktop-table">
@@ -422,7 +423,7 @@ export function render() {
       </div>
 
       <div id="as-tab-dati" class="subview ${activeAssortSubtab === "as-tab-dati" ? "active" : ""}">
-        <div id="as-senza-gruppo-card" style="display:none;border:1px solid var(--accent-red);border-radius:10px;padding:14px;margin-bottom:16px">
+        <div id="as-senza-gruppo-card" class="rw-only" style="display:none;border:1px solid var(--accent-red);border-radius:10px;padding:14px;margin-bottom:16px">
           <h2 style="border:none;padding-bottom:0;margin-bottom:8px">
             <span>⚠ Righe con gruppo non riconosciuto (<span id="as-senza-gruppo-count">0</span>)</span>
             <button class="btn btn-red btn-sm" id="as-senza-gruppo-delete-all">Elimina tutte</button>
@@ -437,7 +438,7 @@ export function render() {
           <p class="hint" id="as-senza-gruppo-more" style="margin-top:8px;margin-bottom:0"></p>
         </div>
 
-        <div id="as-dup-card" style="display:none;margin-bottom:16px">
+        <div id="as-dup-card" class="rw-only" style="display:none;margin-bottom:16px">
           <h2 style="border:none;padding-bottom:0;margin-bottom:8px">⚠ Possibili articoli duplicati a catalogo (<span id="as-dup-count">0</span>)</h2>
           <p class="hint">Stesso prodotto importato più volte con piccole differenze (maiuscole, zero iniziale sul codice, marcatore "(P)"). Scegli quale versione tenere e unisci le altre: assortimenti e vendite vengono spostati automaticamente su quella scelta.</p>
           <div id="as-dup-list"></div>
@@ -460,7 +461,7 @@ export function render() {
           <summary style="cursor:pointer;font-weight:700;font-size:0.95rem">Catalogo articoli (avanzato)</summary>
           <div style="margin-top:12px">
             <div class="filter-bar" style="justify-content:flex-end">
-              <button class="btn btn-sm" id="as-art-new">+ Nuovo articolo</button>
+              <button class="btn btn-sm rw-only" id="as-art-new">+ Nuovo articolo</button>
             </div>
             <div style="overflow-x:auto">
               <table class="desktop-table">
@@ -590,7 +591,7 @@ export function renderAssortimentoGruppo(gruppoId) {
 
     <div id="gd-as-tab-lista" class="subview-nested ${activeGdAssortSubtab === "gd-as-tab-lista" ? "active" : ""}">
       <div class="filter-bar">
-        <button class="btn btn-sm" id="gd-as-add">+ Aggiungi articolo</button>
+        <button class="btn btn-sm rw-only" id="gd-as-add">+ Aggiungi articolo</button>
       </div>
       <div style="overflow-x:auto">
         <table class="desktop-table">
@@ -637,13 +638,13 @@ function renderAssortimentoGruppoTable(gruppoId, tbodyId = "gd-as-table-body") {
       <td class="text-muted">${escapeHtml(articolo?.codice || "—")}</td>
       <td>${escapeHtml(CATEGORIE_ARTICOLO[articolo?.categoria] || "—")}</td>
       <td>
-        <select class="as-stato-select" data-as-id="${row.id}" style="font-size:0.75rem;padding:4px 6px;border-radius:6px;border:1px solid var(--border-color)">
+        <select class="as-stato-select" data-as-id="${row.id}" ${isReadOnly() ? "disabled" : ""} style="font-size:0.75rem;padding:4px 6px;border-radius:6px;border:1px solid var(--border-color)">
           ${Object.entries(STATO_ASSORTIMENTO).map(([k, v]) => `<option value="${k}" ${row.stato === k ? "selected" : ""}>${v.label}</option>`).join("")}
         </select>
       </td>
       <td>${formatDate(row.data_inizio)}</td>
       <td>${escapeHtml(row.note || "—")}</td>
-      <td style="text-align:center"><button class="btn btn-red btn-sm" data-as-delete="${row.id}">Elimina</button></td>
+      <td style="text-align:center"><button class="btn btn-red btn-sm rw-only" data-as-delete="${row.id}">Elimina</button></td>
     </tr>`;
   }).join("");
 

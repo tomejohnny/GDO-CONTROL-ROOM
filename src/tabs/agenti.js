@@ -38,8 +38,8 @@ export function render() {
       <td>${pdvCount(a.id)}</td>
       <td>${statoBadge}</td>
       <td style="text-align:center">
-        <button class="btn btn-ghost btn-sm" data-edit="${a.id}">Modifica</button>
-        <button class="btn btn-red btn-sm" data-delete="${a.id}">Elimina</button>
+        <button class="btn btn-ghost btn-sm rw-only" data-edit="${a.id}">Modifica</button>
+        <button class="btn btn-red btn-sm rw-only" data-delete="${a.id}">Elimina</button>
       </td>`;
     tbody.appendChild(tr);
 
@@ -54,8 +54,8 @@ export function render() {
       <div class="m-card-details">
         <span>${pdvCount(a.id)} PdV assegnati</span>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-ghost btn-sm" data-edit="${a.id}">Modifica</button>
-          <button class="btn btn-red btn-sm" data-delete="${a.id}">Elimina</button>
+          <button class="btn btn-ghost btn-sm rw-only" data-edit="${a.id}">Modifica</button>
+          <button class="btn btn-red btn-sm rw-only" data-delete="${a.id}">Elimina</button>
         </div>
       </div>`;
     mobile.appendChild(card);

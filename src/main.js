@@ -8,6 +8,7 @@ import { onDataChanged } from "./lib/bus.js";
 import { initPdvShared } from "./lib/pdv-shared.js";
 import { initConfirm } from "./lib/confirm.js";
 import { attachDictation } from "./lib/dictation.js";
+import { initPermissions } from "./lib/permissions.js";
 
 import { render as renderDashboard } from "./tabs/dashboard.js";
 import { render as renderGruppi, initGruppi } from "./tabs/gruppi.js";
@@ -77,6 +78,7 @@ function wireLogout() {
 async function bootstrap(user) {
   document.getElementById("header-user").textContent = user.email || "";
   try {
+    await initPermissions();
     await loadAll();
   } catch (err) {
     toastError(err);

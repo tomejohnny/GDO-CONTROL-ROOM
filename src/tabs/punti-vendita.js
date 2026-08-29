@@ -341,8 +341,8 @@ export function render() {
       <td>${statoBadge(STATO_PDV, p.stato)}</td>
       <td>${escapeHtml(agente)}</td>
       <td style="text-align:center">
-        <button class="btn btn-ghost btn-sm" data-pdv-edit="${p.id}">Modifica</button>
-        <button class="btn btn-red btn-sm" data-pdv-delete="${p.id}">Elimina</button>
+        <button class="btn btn-ghost btn-sm rw-only" data-pdv-edit="${p.id}">Modifica</button>
+        <button class="btn btn-red btn-sm rw-only" data-pdv-delete="${p.id}">Elimina</button>
       </td>`;
     tbody.appendChild(tr);
 
@@ -357,8 +357,8 @@ export function render() {
       <div class="m-card-details">
         <span>Agente: ${escapeHtml(agente)}</span>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-ghost btn-sm" data-pdv-edit="${p.id}">Modifica</button>
-          <button class="btn btn-red btn-sm" data-pdv-delete="${p.id}">Elimina</button>
+          <button class="btn btn-ghost btn-sm rw-only" data-pdv-edit="${p.id}">Modifica</button>
+          <button class="btn btn-red btn-sm rw-only" data-pdv-delete="${p.id}">Elimina</button>
         </div>
       </div>`;
     mobile.appendChild(card);

@@ -43,7 +43,7 @@
                 <button class="nav-btn" data-view="assortimenti"><span class="icon">▤</span> Assortimenti</button>
                 <button class="nav-btn" data-view="attivita"><span class="icon">✓</span> Attività</button>
                 <button class="nav-btn" data-view="statistiche"><span class="icon">▲</span> Statistiche</button>
-                <button class="nav-btn" data-view="import"><span class="icon">⇩</span> Import dati</button>
+                <button class="nav-btn rw-only" data-view="import"><span class="icon">⇩</span> Import dati</button>
             </nav>
             <div class="sidebar-footer">
                 <div id="header-user" class="header-user"></div>
@@ -97,7 +97,7 @@
                 <div id="view-gruppi" class="view-section">
                     <div id="gruppi-list-view">
                         <div class="actions-bar">
-                            <button class="btn" data-open-modal="gruppoModal">+ Nuovo gruppo GDO</button>
+                            <button class="btn rw-only" data-open-modal="gruppoModal">+ Nuovo gruppo GDO</button>
                         </div>
                         <div class="card">
                             <p class="hint" style="color:var(--accent-blue);font-weight:700">💡 Clicca sul nome di un gruppo per aprirne la scheda (punti vendita, assortimento, attività).</p>
@@ -127,8 +127,8 @@
                             <h2>
                                 <span id="gd-nome">—</span>
                                 <span>
-                                    <button class="btn btn-ghost btn-sm" id="gd-edit">Modifica gruppo</button>
-                                    <button class="btn btn-red btn-sm" id="gd-delete">Elimina</button>
+                                    <button class="btn btn-ghost btn-sm rw-only" id="gd-edit">Modifica gruppo</button>
+                                    <button class="btn btn-red btn-sm rw-only" id="gd-delete">Elimina</button>
                                 </span>
                             </h2>
                             <div class="grid-3" id="gd-kpis">
@@ -159,7 +159,7 @@
 
                             <div id="gd-pdv" class="subview active">
                                 <div class="actions-bar">
-                                    <button class="btn btn-sm" id="gd-pdv-new">+ Punto vendita</button>
+                                    <button class="btn btn-sm rw-only" id="gd-pdv-new">+ Punto vendita</button>
                                 </div>
                                 <div class="filter-bar">
                                     <input id="gd-pdv-search" placeholder="Cerca insegna o comune">
@@ -185,7 +185,7 @@
 
                             <div id="gd-attivita" class="subview">
                                 <div class="actions-bar">
-                                    <button class="btn btn-sm" id="gd-attivita-new">+ Attività</button>
+                                    <button class="btn btn-sm rw-only" id="gd-attivita-new">+ Attività</button>
                                 </div>
                                 <div id="gd-attivita-list"></div>
                             </div>
@@ -196,9 +196,9 @@
                 <!-- PUNTI VENDITA (vista trasversale) -->
                 <div id="view-punti-vendita" class="view-section">
                     <div class="actions-bar">
-                        <button class="btn" id="pv-new">+ Nuovo punto vendita</button>
+                        <button class="btn rw-only" id="pv-new">+ Nuovo punto vendita</button>
                     </div>
-                    <div class="card" id="pv-attenzione-card" style="display:none">
+                    <div class="card rw-only" id="pv-attenzione-card" style="display:none">
                         <h2>
                             <span>⚠ Punti vendita da sistemare (<span id="pv-attenzione-count">0</span>)</span>
                             <button class="btn btn-ghost btn-sm" id="pv-attenzione-toggle">▸ Espandi</button>
@@ -213,7 +213,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="card" id="pv-dup-card" style="display:none">
+                    <div class="card rw-only" id="pv-dup-card" style="display:none">
                         <h2>⚠ Possibili punti vendita duplicati (<span id="pv-dup-count">0</span>)</h2>
                         <p class="hint">Stesso negozio importato da fonti diverse con un nome leggermente diverso (es. con/senza forma societaria). Scegli quale tenere e unisci gli altri: agente, comune, indirizzo e le altre schede vuote vengono completate dagli altri, il venduto viene spostato tutto su quello scelto.</p>
                         <div id="pv-dup-list"></div>
@@ -242,7 +242,7 @@
                 <!-- AGENTI -->
                 <div id="view-agenti" class="view-section">
                     <div class="actions-bar">
-                        <button class="btn" data-open-modal="agenteModal">+ Nuovo agente</button>
+                        <button class="btn rw-only" data-open-modal="agenteModal">+ Nuovo agente</button>
                     </div>
                     <div class="card">
                         <table class="desktop-table has-mobile-cards">

@@ -173,6 +173,9 @@ h1, h2, .brand-name, .login-box h1 { font-family: "Cormorant Garamond", Georgia,
   50% { box-shadow: 0 0 0 6px rgba(200, 60, 60, 0); }
 }
 
+/* ---------- Accesso sola lettura: nasconde ogni controllo di scrittura ---------- */
+body.readonly .rw-only { display: none !important; }
+
 /* ---------- Modal ---------- */
 .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(16, 26, 44, 0.5); justify-content: center; align-items: center; z-index: 1000; padding: 15px; }
 .modal-overlay.open { display: flex; }

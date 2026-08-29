@@ -56,8 +56,8 @@ function renderList() {
       <td>${escapeHtml(a.responsabile || "—")}</td>
       <td class="${scaduta ? "text-red" : ""}">${a.scadenza ? formatDate(a.scadenza) : "—"}</td>
       <td style="text-align:center">
-        ${a.tipo === "task" ? `<button class="btn btn-ghost btn-sm" data-toggle="${a.id}">${a.completato ? "Riapri" : "Completa"}</button>` : ""}
-        <button class="btn btn-red btn-sm" data-delete="${a.id}">Elimina</button>
+        ${a.tipo === "task" ? `<button class="btn btn-ghost btn-sm rw-only" data-toggle="${a.id}">${a.completato ? "Riapri" : "Completa"}</button>` : ""}
+        <button class="btn btn-red btn-sm rw-only" data-delete="${a.id}">Elimina</button>
       </td>
     </tr>`;
   }).join("");
@@ -118,7 +118,7 @@ export function render() {
       </div>
     </div>
     <div class="actions-bar">
-      <button class="btn" id="at-new">+ Nuova attività</button>
+      <button class="btn rw-only" id="at-new">+ Nuova attività</button>
     </div>
     <div class="card">
       <div class="filter-bar">
