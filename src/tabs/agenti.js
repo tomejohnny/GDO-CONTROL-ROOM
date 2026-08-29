@@ -1,11 +1,12 @@
 import { getState, loadAll, gruppoById } from "../lib/store.js";
 import { insertRow, updateRow, deleteRow } from "../lib/db.js";
-import { escapeHtml, money, percent } from "../lib/format.js";
+import { escapeHtml, money, percent, formatDate } from "../lib/format.js";
 import { openModal, closeModal } from "../lib/modal.js";
 import { toast, toastError } from "../lib/ui.js";
 import { notifyDataChanged } from "../lib/bus.js";
 import { confirmDialog } from "../lib/confirm.js";
 import { fatturatoPerAgente } from "../lib/analytics.js";
+import { ultimaDataVendite } from "../lib/kpis.js";
 
 const TABLE = "agenti";
 let editingId = null;
@@ -77,6 +78,10 @@ function openAgenteDetail(id) {
   document.getElementById("ad-kpi-fatturato").textContent = money(fatturatoTotale);
   document.getElementById("ad-kpi-pdv").textContent = righe.length;
   document.getElementById("ad-kpi-margine").textContent = percent(margineTotalePct);
+
+  const pdvIds = new Set(puntiVendita.filter(p => String(p.agente_id) === String(id)).map(p => p.id));
+  const ultimoAggiornamento = ultimaDataVendite(vendite.filter(v => pdvIds.has(v.punto_vendita_id)));
+  document.getElementById("ad-kpi-fatturato-sub").textContent = ultimoAggiornamento ? `Dati al ${formatDate(ultimoAggiornamento)}` : "";
 
   const tbody = document.getElementById("ad-table-body");
   tbody.innerHTML = righe.length ? righe.map(r => {

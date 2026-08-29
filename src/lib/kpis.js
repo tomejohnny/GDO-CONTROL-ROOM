@@ -1,5 +1,5 @@
 import { getState } from "./store.js";
-import { money, percent } from "./format.js";
+import { money, percent, formatDate } from "./format.js";
 
 export function coperturaGruppo(gruppoId, puntiVendita) {
   const pdv = puntiVendita.filter(p => String(p.gruppo_id) === String(gruppoId));
@@ -21,6 +21,12 @@ export function fatturatoAnnoCorrente(vendite) {
     .reduce((sum, v) => sum + Number(v.valore_euro || 0), 0);
 }
 
+// La data più recente tra i venduti importati: dice fino a quando i dati di
+// fatturato sono aggiornati, a prescindere da quanto siano granulari.
+export function ultimaDataVendite(vendite) {
+  return vendite.reduce((max, v) => (v.periodo && (!max || v.periodo > max) ? v.periodo : max), null);
+}
+
 export function computeGlobalStats() {
   const { gruppi, puntiVendita, vendite } = getState();
   const gruppiAttivi = gruppi.filter(g => g.stato === "attivo").length;
@@ -29,7 +35,8 @@ export function computeGlobalStats() {
   const coperturaPct = pdvTotali ? (pdvServiti / pdvTotali) * 100 : 0;
   const gruppiCritici = gruppi.filter(g => g.stato === "sospeso").length;
   const fatturato = fatturatoAnnoCorrente(vendite);
-  return { totaleGruppi: gruppi.length, gruppiAttivi, pdvTotali, pdvServiti, coperturaPct, gruppiCritici, fatturato };
+  const ultimoAggiornamento = ultimaDataVendite(vendite);
+  return { totaleGruppi: gruppi.length, gruppiAttivi, pdvTotali, pdvServiti, coperturaPct, gruppiCritici, fatturato, ultimoAggiornamento };
 }
 
 export function refreshKpis() {
@@ -43,5 +50,6 @@ export function refreshKpis() {
   set("kpi-pdv", `${s.pdvServiti} / ${s.pdvTotali}`);
   set("kpi-pdv-sub", `Copertura ${percent(s.coperturaPct)}`);
   set("kpi-fatturato", money(s.fatturato));
+  set("kpi-fatturato-sub", s.ultimoAggiornamento ? `Da statistiche venduto (dati al ${formatDate(s.ultimoAggiornamento)})` : "Da statistiche venduto");
   set("kpi-attenzione", s.gruppiCritici);
 }

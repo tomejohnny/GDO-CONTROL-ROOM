@@ -5,7 +5,7 @@ import { openModal, closeModal } from "../lib/modal.js";
 import { toast, toastError } from "../lib/ui.js";
 import { notifyDataChanged } from "../lib/bus.js";
 import { confirmDialog } from "../lib/confirm.js";
-import { coperturaGruppo, fatturatoAnnoCorrente } from "../lib/kpis.js";
+import { coperturaGruppo, fatturatoAnnoCorrente, ultimaDataVendite } from "../lib/kpis.js";
 import { openPdvModal, wirePdvRowActions, populateGruppoSelect } from "../lib/pdv-shared.js";
 import { renderAssortimentoGruppo } from "./assortimenti.js";
 
@@ -193,6 +193,8 @@ function renderDetail() {
 
   const venditeGruppo = getState().vendite.filter(v => String(v.gruppo_id) === String(g.id));
   document.getElementById("gd-kpi-fatturato").textContent = money(fatturatoAnnoCorrente(venditeGruppo));
+  const ultimoAggiornamento = ultimaDataVendite(venditeGruppo);
+  document.getElementById("gd-kpi-fatturato-sub").textContent = ultimoAggiornamento ? `Da statistiche venduto (dati al ${formatDate(ultimoAggiornamento)})` : "Da statistiche venduto";
 
   renderPdvSubview();
   renderAssortimentoGruppo(g.id);
