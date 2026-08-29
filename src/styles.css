@@ -101,6 +101,16 @@ h1, h2, .brand-name, .login-box h1 { font-family: "Cormorant Garamond", Georgia,
 .row-link { color: var(--accent-blue); font-weight: 600; cursor: pointer; text-decoration: none; }
 .row-link:hover { text-decoration: underline; }
 
+/* L'aspetto della card vale sempre — anche fuori dal contenitore
+   "mobile-cards-container" (es. la lista attività nella scheda gruppo, che
+   non ha una tabella desktop alternativa e usa questa card a ogni
+   larghezza). Solo la VISIBILITA' del contenitore alternativo alla tabella
+   desktop resta legata al breakpoint mobile, qui sotto. */
+.m-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+.m-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.m-card-title { font-size: 0.85rem; font-weight: 700; }
+.m-card-details { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; border-top: 1px dashed var(--border-color); padding-top: 6px; flex-wrap: wrap; gap: 6px; }
+
 .mobile-cards-container { display: none; }
 @media (max-width: 800px) {
   /* Solo le tabelle che hanno una vera alternativa a "card" per mobile
@@ -109,10 +119,6 @@ h1, h2, .brand-name, .login-box h1 { font-family: "Cormorant Garamond", Georgia,
      invece di sparire senza alternativa. */
   .desktop-table.has-mobile-cards { display: none; }
   .mobile-cards-container { display: flex; flex-direction: column; gap: 10px; }
-  .m-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px; }
-  .m-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-  .m-card-title { font-size: 0.85rem; font-weight: 700; }
-  .m-card-details { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; border-top: 1px dashed var(--border-color); padding-top: 6px; flex-wrap: wrap; gap: 6px; }
 }
 
 /* ---------- Buttons ---------- */
