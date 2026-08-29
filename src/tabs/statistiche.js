@@ -10,10 +10,12 @@ const sectionState = {
   pdv: { collapsed: true, showAll: false },
   agente: { collapsed: true, showAll: false },
   comuni: { collapsed: true, showAll: false },
+  nonMovimentati: { collapsed: true, showAll: false },
 };
 let lastAggregatedArticolo = [];
 let lastAggregatedPdv = [];
 let lastAggregatedAgente = [];
+let lastNonMovimentati = [];
 
 function exportArticoloCsv() {
   const headers = ["Gruppo", "Articolo", "Codice", "Categoria", "Punti vendita", "Quantità", "Valore", "Costo", "Margine €", "Margine %"];
@@ -45,6 +47,16 @@ function exportAgenteCsv() {
     return [agenteNome(g.agente_id) || "Senza agente", g.agente_id != null ? agenteById(g.agente_id)?.zona || "" : "", g.puntiVendita.size, mediaPdv.toFixed(2), g.quantita, g.valore_euro.toFixed(2), g.costo_acquisto.toFixed(2), g.margine_valore.toFixed(2), marginePct.toFixed(1)];
   });
   downloadCsv("venduto_per_agente.csv", headers, rows);
+}
+
+function exportNonMovimentatiCsv() {
+  const headers = ["Gruppo", "Articolo", "Codice", "Categoria"];
+  const rows = lastNonMovimentati.map(a => {
+    const gruppo = gruppoById(a.gruppo_id);
+    const art = articoloById(a.articolo_id);
+    return [gruppo?.nome || "", art?.descrizione || "", art?.codice || "", art ? CATEGORIE_ARTICOLO[art.categoria] || art.categoria : ""];
+  });
+  downloadCsv("articoli_non_movimentati.csv", headers, rows);
 }
 
 function filters() {
@@ -166,7 +178,7 @@ function aggregateByAgente(rows) {
   return [...groups.values()].sort((a, b) => b.valore_euro - a.valore_euro);
 }
 
-function renderSection(key, tbodyId, items, rowFn, colspan) {
+function renderSection(key, tbodyId, items, rowFn, colspan, emptyMessage) {
   const state = sectionState[key];
   const body = document.getElementById(`st-${key}-body-wrap`);
   const toggleBtn = document.getElementById(`st-toggle-${key}`);
@@ -177,7 +189,7 @@ function renderSection(key, tbodyId, items, rowFn, colspan) {
 
   const tbody = document.getElementById(tbodyId);
   if (!items.length) {
-    tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state">Nessun dato di venduto per i filtri selezionati.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state">${emptyMessage || "Nessun dato di venduto per i filtri selezionati."}</td></tr>`;
     document.getElementById(`st-${key}-more`).innerHTML = "";
     return;
   }
@@ -266,23 +278,28 @@ function renderContent() {
   // possono non essere nemmeno in assortimento (venduto informale), quindi
   // serve l'intersezione vera tra i due insiemi.
   const filtriAssortimento = filters();
-  const articoliAssortimentoSet = new Set(
-    getState().assortimenti
-      .filter(a => {
-        if (a.stato !== "attivo") return false;
-        if (filtriAssortimento.gruppo && String(a.gruppo_id) !== filtriAssortimento.gruppo) return false;
-        if (filtriAssortimento.categoria) {
-          const art = articoloById(a.articolo_id);
-          if (!art || art.categoria !== filtriAssortimento.categoria) return false;
-        }
-        return true;
-      })
-      .map(a => a.articolo_id)
-  );
+  const assortimentoFiltrato = getState().assortimenti.filter(a => {
+    if (a.stato !== "attivo") return false;
+    if (filtriAssortimento.gruppo && String(a.gruppo_id) !== filtriAssortimento.gruppo) return false;
+    if (filtriAssortimento.categoria) {
+      const art = articoloById(a.articolo_id);
+      if (!art || art.categoria !== filtriAssortimento.categoria) return false;
+    }
+    return true;
+  });
+  const articoliAssortimentoSet = new Set(assortimentoFiltrato.map(a => a.articolo_id));
   const totaleAssortimento = articoliAssortimentoSet.size;
   const movimentati = [...articoliAssortimentoSet].filter(id => articoliVendutiSet.has(id)).length;
   const nonMovimentati = totaleAssortimento - movimentati;
   const coperturaAssortimentoPct = totaleAssortimento ? (movimentati / totaleAssortimento) * 100 : 0;
+  lastNonMovimentati = assortimentoFiltrato
+    .filter(a => !articoliVendutiSet.has(a.articolo_id))
+    .sort((a, b) => {
+      const gA = gruppoById(a.gruppo_id)?.nome || "";
+      const gB = gruppoById(b.gruppo_id)?.nome || "";
+      if (gA !== gB) return gA.localeCompare(gB);
+      return (articoloById(a.articolo_id)?.descrizione || "").localeCompare(articoloById(b.articolo_id)?.descrizione || "");
+    });
 
   // Incidenza sul fatturato di tutti i gruppi nello stesso periodo/categoria
   // (ignora il filtro gruppo/PdV apposta: senza confronto con tutti gli
@@ -391,6 +408,17 @@ function renderContent() {
     </tr>`;
   }, 9);
 
+  renderSection("nonMovimentati", "st-table-nonmov-body", lastNonMovimentati, a => {
+    const gruppo = gruppoById(a.gruppo_id);
+    const art = articoloById(a.articolo_id);
+    return `<tr>
+      <td>${escapeHtml(gruppo?.nome || "—")}</td>
+      <td>${escapeHtml(art?.descrizione || "—")}</td>
+      <td class="text-muted">${escapeHtml(art?.codice || "—")}</td>
+      <td class="text-muted">${escapeHtml(art ? CATEGORIE_ARTICOLO[art.categoria] || art.categoria : "—")}</td>
+    </tr>`;
+  }, 4, "Tutti gli articoli in assortimento per questi filtri hanno movimentato: copertura 100%.");
+
   renderComuniSection(articoliComuniTraGruppi(getState().assortimenti, filteredVenditeIgnorandoGruppo()));
 }
 
@@ -477,6 +505,25 @@ export function render() {
     </div>
     <div class="card">
       <h2>
+        <span>Articoli in assortimento mai venduti</span>
+        <span style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" id="st-export-nonmov">⇩ Esporta CSV</button>
+          <button class="btn btn-sm" id="st-toggle-nonMovimentati">▸ Espandi</button>
+        </span>
+      </h2>
+      <div id="st-nonMovimentati-body-wrap">
+        <p class="hint">Articoli attivi in assortimento (per i filtri gruppo/categoria sopra, senza limite di periodo) che non risultano in nessuna vendita nel periodo filtrato.</p>
+        <div style="overflow-x:auto">
+          <table class="desktop-table">
+            <thead><tr><th>Gruppo</th><th>Articolo</th><th>Codice</th><th>Categoria</th></tr></thead>
+            <tbody id="st-table-nonmov-body"></tbody>
+          </table>
+        </div>
+        <div id="st-nonMovimentati-more" style="margin-top:12px;text-align:center"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>
         <span>Fatturato per punto vendita</span>
         <span style="display:flex;gap:6px">
           <button class="btn btn-ghost btn-sm" id="st-export-pdv">⇩ Esporta CSV</button>
@@ -536,9 +583,14 @@ export function render() {
   document.getElementById("st-export-articolo").addEventListener("click", exportArticoloCsv);
   document.getElementById("st-export-pdv").addEventListener("click", exportPdvCsv);
   document.getElementById("st-export-agente").addEventListener("click", exportAgenteCsv);
+  document.getElementById("st-export-nonmov").addEventListener("click", exportNonMovimentatiCsv);
 
   document.getElementById("st-toggle-articolo").addEventListener("click", () => {
     sectionState.articolo.collapsed = !sectionState.articolo.collapsed;
+    renderContent();
+  });
+  document.getElementById("st-toggle-nonMovimentati").addEventListener("click", () => {
+    sectionState.nonMovimentati.collapsed = !sectionState.nonMovimentati.collapsed;
     renderContent();
   });
   document.getElementById("st-toggle-pdv").addEventListener("click", () => {
