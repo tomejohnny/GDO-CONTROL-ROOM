@@ -14,12 +14,12 @@ let lastAggregatedArticolo = [];
 let lastAggregatedPdv = [];
 
 function exportArticoloCsv() {
-  const headers = ["Gruppo", "Articolo", "Categoria", "Punti vendita", "Quantità", "Valore", "Costo", "Margine €", "Margine %"];
+  const headers = ["Gruppo", "Articolo", "Codice", "Categoria", "Punti vendita", "Quantità", "Valore", "Costo", "Margine €", "Margine %"];
   const rows = lastAggregatedArticolo.map(g => {
     const gruppo = gruppoById(g.gruppo_id);
     const art = articoloById(g.articolo_id);
     const marginePct = g.valore_euro ? (g.margine_valore / g.valore_euro) * 100 : 0;
-    return [gruppo?.nome || "", art?.descrizione || "", art ? CATEGORIE_ARTICOLO[art.categoria] || art.categoria : "", g.puntiVendita.size, g.quantita, g.valore_euro.toFixed(2), g.costo_acquisto.toFixed(2), g.margine_valore.toFixed(2), marginePct.toFixed(1)];
+    return [gruppo?.nome || "", art?.descrizione || "", art?.codice || "", art ? CATEGORIE_ARTICOLO[art.categoria] || art.categoria : "", g.puntiVendita.size, g.quantita, g.valore_euro.toFixed(2), g.costo_acquisto.toFixed(2), g.margine_valore.toFixed(2), marginePct.toFixed(1)];
   });
   downloadCsv("venduto_per_articolo.csv", headers, rows);
 }
@@ -273,6 +273,7 @@ function renderContent() {
     return `<tr>
       <td>${escapeHtml(gruppo?.nome || "—")}</td>
       <td>${escapeHtml(art?.descrizione || "—")}</td>
+      <td class="text-muted">${escapeHtml(art?.codice || "—")}</td>
       <td class="text-muted">${escapeHtml(art ? CATEGORIE_ARTICOLO[art.categoria] || art.categoria : "—")}</td>
       <td style="text-align:right">${g.puntiVendita.size || "—"}</td>
       <td style="text-align:right">${number(g.quantita)}</td>
@@ -281,7 +282,7 @@ function renderContent() {
       <td style="text-align:right" class="amount">${money(g.margine_valore)}</td>
       <td style="text-align:right">${percent(marginePct)}</td>
     </tr>`;
-  }, 9);
+  }, 10);
 
   renderSection("pdv", "st-table-pdv-body", lastAggregatedPdv, g => {
     const gruppo = gruppoById(g.gruppo_id);
@@ -371,7 +372,7 @@ export function render() {
         <div style="overflow-x:auto">
           <table class="desktop-table">
             <thead><tr>
-              <th>Gruppo</th><th>Articolo</th><th>Categoria</th><th style="text-align:right">PdV</th>
+              <th>Gruppo</th><th>Articolo</th><th>Codice</th><th>Categoria</th><th style="text-align:right">PdV</th>
               <th style="text-align:right">Quantità</th><th style="text-align:right">Valore</th>
               <th style="text-align:right">Costo</th><th style="text-align:right">Margine €</th><th style="text-align:right">Margine %</th>
             </tr></thead>
