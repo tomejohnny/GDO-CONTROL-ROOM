@@ -221,7 +221,14 @@ function renderContent() {
   const margineMedioPct = totaleValore ? (totaleMargine / totaleValore) * 100 : 0;
   const gruppiCoinvolti = new Set(rows.map(v => v.gruppo_id)).size;
 
+  // Incidenza sul fatturato di tutti i gruppi nello stesso periodo/categoria
+  // (ignora il filtro gruppo/PdV apposta: senza confronto con tutti gli
+  // altri, "quota" non vorrebbe dire nulla).
+  const totaleGlobale = filteredVenditeIgnorandoGruppo().reduce((s, v) => s + Number(v.valore_euro || 0), 0);
+  const incidenzaPct = totaleGlobale ? (totaleValore / totaleGlobale) * 100 : 0;
+
   document.getElementById("st-kpi-valore").textContent = money(totaleValore);
+  document.getElementById("st-kpi-incidenza").textContent = `${percent(incidenzaPct)} del fatturato di tutti i gruppi`;
   document.getElementById("st-kpi-quantita").textContent = number(totaleQuantita);
   document.getElementById("st-kpi-gruppi").textContent = gruppiCoinvolti;
   document.getElementById("st-kpi-righe").textContent = number(rows.length);
@@ -325,6 +332,7 @@ export function render() {
         <div class="kpi-card">
           <div class="kpi-title">Fatturato periodo</div>
           <div class="kpi-value" id="st-kpi-valore">€ 0,00</div>
+          <div class="kpi-sub" id="st-kpi-incidenza"></div>
         </div>
         <div class="kpi-card">
           <div class="kpi-title">Quantità totale</div>
@@ -343,9 +351,9 @@ export function render() {
           <div class="kpi-value" id="st-kpi-costo">€ 0,00</div>
         </div>
         <div class="kpi-card green">
-          <div class="kpi-title">Margine</div>
-          <div class="kpi-value" id="st-kpi-margine">€ 0,00</div>
-          <div class="kpi-sub"><span id="st-kpi-margine-pct">0,0%</span> sul fatturato del periodo</div>
+          <div class="kpi-title">Margine %</div>
+          <div class="kpi-value" id="st-kpi-margine-pct">0,0%</div>
+          <div class="kpi-sub"><span id="st-kpi-margine">€ 0,00</span> di margine sul periodo</div>
         </div>
       </div>
     </div>
