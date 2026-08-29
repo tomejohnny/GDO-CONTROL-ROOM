@@ -1,11 +1,10 @@
 import { getState, loadAll, gruppoById } from "../lib/store.js";
 import { updateRow, deleteRow } from "../lib/db.js";
 import { escapeHtml, formatDate, todayIso } from "../lib/format.js";
-import { openModal } from "../lib/modal.js";
 import { toast, toastError } from "../lib/ui.js";
 import { notifyDataChanged } from "../lib/bus.js";
 import { confirmDialog } from "../lib/confirm.js";
-import { populateGruppoSelect } from "../lib/pdv-shared.js";
+import { openAttivitaModal } from "./gruppi.js";
 
 const TIPO_LABEL = { nota: "Nota", chiamata: "Chiamata", visita: "Visita", task: "Task" };
 
@@ -57,6 +56,7 @@ function renderList() {
       <td class="${scaduta ? "text-red" : ""}">${a.scadenza ? formatDate(a.scadenza) : "—"}</td>
       <td style="text-align:center">
         ${a.tipo === "task" ? `<button class="btn btn-ghost btn-sm rw-only" data-toggle="${a.id}">${a.completato ? "Riapri" : "Completa"}</button>` : ""}
+        <button class="btn btn-ghost btn-sm rw-only" data-edit="${a.id}">Modifica</button>
         <button class="btn btn-red btn-sm rw-only" data-delete="${a.id}">Elimina</button>
       </td>
     </tr>`;
@@ -64,6 +64,10 @@ function renderList() {
 
   tbody.querySelectorAll("[data-toggle]").forEach(el => el.addEventListener("click", () => onToggle(el.dataset.toggle)));
   tbody.querySelectorAll("[data-delete]").forEach(el => el.addEventListener("click", () => onDelete(el.dataset.delete)));
+  tbody.querySelectorAll("[data-edit]").forEach(el => el.addEventListener("click", () => {
+    const row = getState().attivita.find(a => String(a.id) === String(el.dataset.edit));
+    if (row) openAttivitaModal(row);
+  }));
   tbody.querySelectorAll("[data-open-gruppo]").forEach(el => el.addEventListener("click", () => {
     document.querySelector('.nav-btn[data-view="gruppi"]')?.click();
     window.dispatchEvent(new CustomEvent("open-gruppo-detail", { detail: { id: el.dataset.openGruppo } }));
@@ -146,11 +150,7 @@ export function render() {
     document.getElementById(id).addEventListener("input", renderList);
     document.getElementById(id).addEventListener("change", renderList);
   });
-  document.getElementById("at-new").addEventListener("click", () => {
-    document.getElementById("attivita-form").reset();
-    populateGruppoSelect(document.getElementById("at-gruppo"));
-    openModal("attivitaModal");
-  });
+  document.getElementById("at-new").addEventListener("click", () => openAttivitaModal());
 
   renderList();
 }

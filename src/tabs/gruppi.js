@@ -12,6 +12,7 @@ import { renderAssortimentoGruppo } from "./assortimenti.js";
 const TABLE = "gdo_groups";
 let editingId = null;
 let selectedGruppoId = null;
+let editingAttivitaId = null;
 const PDV_TOP_N = 30;
 let pdvShowAll = false;
 
@@ -288,6 +289,7 @@ function renderAttivitaSubview() {
         <span class="badge" style="background:${a.completato ? "var(--accent-green)" : "var(--accent-blue)"}">${TIPO_LABEL[a.tipo] || a.tipo}</span>
         <div style="display:flex;gap:6px">
           ${a.tipo === "task" ? `<button class="btn btn-ghost btn-sm rw-only" data-toggle-attivita="${a.id}">${a.completato ? "Riapri" : "Completa"}</button>` : ""}
+          <button class="btn btn-ghost btn-sm rw-only" data-edit-attivita="${a.id}">Modifica</button>
           <button class="btn btn-red btn-sm rw-only" data-delete-attivita="${a.id}">Elimina</button>
         </div>
       </div>
@@ -300,6 +302,10 @@ function renderAttivitaSubview() {
 
   container.querySelectorAll("[data-delete-attivita]").forEach(el => el.addEventListener("click", () => onDeleteAttivita(el.dataset.deleteAttivita)));
   container.querySelectorAll("[data-toggle-attivita]").forEach(el => el.addEventListener("click", () => onToggleAttivita(el.dataset.toggleAttivita)));
+  container.querySelectorAll("[data-edit-attivita]").forEach(el => el.addEventListener("click", () => {
+    const row = getState().attivita.find(a => String(a.id) === String(el.dataset.editAttivita));
+    if (row) openAttivitaModal(row);
+  }));
 }
 
 async function onDeleteAttivita(id) {
@@ -326,6 +332,18 @@ async function onToggleAttivita(id) {
   }
 }
 
+export function openAttivitaModal(attivita = null, defaultGruppoId = null) {
+  editingAttivitaId = attivita ? attivita.id : null;
+  document.getElementById("attivita-form").reset();
+  populateGruppoSelect(document.getElementById("at-gruppo"), attivita ? attivita.gruppo_id : defaultGruppoId);
+  document.getElementById("at-tipo").value = attivita?.tipo || "nota";
+  document.getElementById("at-descrizione").value = attivita?.descrizione || "";
+  document.getElementById("at-responsabile").value = attivita?.responsabile || "";
+  document.getElementById("at-scadenza").value = attivita?.scadenza || "";
+  document.getElementById("attivita-modal-title").textContent = attivita ? "Modifica attività" : "Nuova attività";
+  openModal("attivitaModal");
+}
+
 async function onSubmitAttivita(event) {
   event.preventDefault();
   const payload = {
@@ -346,9 +364,14 @@ async function onSubmitAttivita(event) {
   const submitBtn = event.target.querySelector('button[type="submit"]');
   if (submitBtn) submitBtn.disabled = true;
   try {
-    await insertRow("attivita", payload);
+    if (editingAttivitaId) {
+      await updateRow("attivita", editingAttivitaId, payload);
+    } else {
+      await insertRow("attivita", payload);
+    }
     closeModal("attivitaModal");
     document.getElementById("attivita-form").reset();
+    editingAttivitaId = null;
     await loadAll();
     notifyDataChanged();
     toast("Attività salvata", "success");
@@ -389,10 +412,6 @@ export function initGruppi() {
   document.getElementById("gd-pdv-search").addEventListener("input", renderPdvSubview);
   document.getElementById("gd-pdv-filter-stato").addEventListener("change", renderPdvSubview);
 
-  document.getElementById("gd-attivita-new").addEventListener("click", () => {
-    document.getElementById("attivita-form").reset();
-    populateGruppoSelect(document.getElementById("at-gruppo"), selectedGruppoId);
-    openModal("attivitaModal");
-  });
+  document.getElementById("gd-attivita-new").addEventListener("click", () => openAttivitaModal(null, selectedGruppoId));
   document.getElementById("attivita-form").addEventListener("submit", onSubmitAttivita);
 }
