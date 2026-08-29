@@ -207,6 +207,78 @@ function renderDuplicatiPdv() {
   });
 }
 
+// ============================================== PUNTI VENDITA DA SISTEMARE ===
+
+// Fatturato mai importato per il punto vendita, senza limiti di periodo: se
+// esiste anche una sola vendita, il negozio è a tutti gli effetti un cliente
+// attivo, quindi lo stato dovrebbe essere "servito" e dovrebbe avere un
+// agente in gestione — a differenza della copertura per anno usata altrove,
+// qui interessa "ha mai venduto", non "quanto ha venduto quest'anno".
+function fatturatoTotalePerPdvMap(vendite) {
+  const map = new Map();
+  vendite.forEach(v => {
+    if (v.punto_vendita_id == null) return;
+    map.set(v.punto_vendita_id, (map.get(v.punto_vendita_id) || 0) + Number(v.valore_euro || 0));
+  });
+  return map;
+}
+
+function puntiVenditaDaSistemare() {
+  const { puntiVendita, vendite } = getState();
+  const fatturato = fatturatoTotalePerPdvMap(vendite);
+  return puntiVendita
+    .map(p => ({ ...p, fatturato: fatturato.get(p.id) || 0 }))
+    .filter(p => p.fatturato > 0 && (p.stato !== "servito" || p.agente_id == null))
+    .sort((a, b) => b.fatturato - a.fatturato);
+}
+
+function renderPdvDaSistemare() {
+  const card = document.getElementById("pv-attenzione-card");
+  if (!card) return;
+  const righe = puntiVenditaDaSistemare();
+  if (!righe.length) {
+    card.style.display = "none";
+    return;
+  }
+  card.style.display = "";
+  document.getElementById("pv-attenzione-count").textContent = righe.length;
+  document.getElementById("pv-attenzione-body").innerHTML = righe.map(p => `<tr>
+    <td><strong>${escapeHtml(p.nome_insegna)}</strong></td>
+    <td>${escapeHtml(gruppoById(p.gruppo_id)?.nome || "—")}</td>
+    <td style="text-align:right" class="amount">${money(p.fatturato)}</td>
+    <td>
+      ${p.stato === "servito"
+        ? statoBadge(STATO_PDV, p.stato)
+        : `<div style="display:flex;align-items:center;gap:6px">${statoBadge(STATO_PDV, p.stato)}<button class="btn btn-sm" data-pdv-mark-servito="${p.id}">Segna servito</button></div>`}
+    </td>
+    <td><select data-pdv-set-agente="${p.id}" style="font-size:0.75rem;padding:4px 6px;border-radius:6px;border:1px solid ${p.agente_id == null ? "var(--accent-red)" : "var(--border-color)"}"></select></td>
+  </tr>`).join("");
+
+  righe.forEach(p => {
+    populateAgenteSelect(document.querySelector(`[data-pdv-set-agente="${p.id}"]`), p.agente_id);
+  });
+  card.querySelectorAll("[data-pdv-mark-servito]").forEach(el => el.addEventListener("click", async () => {
+    try {
+      await updateRow("punti_vendita", el.dataset.pdvMarkServito, { stato: "servito" });
+      await loadAll();
+      notifyDataChanged();
+      toast("Punto vendita segnato come servito", "success");
+    } catch (err) {
+      toastError(err);
+    }
+  }));
+  card.querySelectorAll("[data-pdv-set-agente]").forEach(el => el.addEventListener("change", async () => {
+    try {
+      await updateRow("punti_vendita", el.dataset.pdvSetAgente, { agente_id: el.value ? Number(el.value) : null });
+      await loadAll();
+      notifyDataChanged();
+      toast("Agente assegnato", "success");
+    } catch (err) {
+      toastError(err);
+    }
+  }));
+}
+
 // ============================================================= VISTA ===
 
 function filters() {
@@ -291,6 +363,7 @@ export function render() {
   wirePdvRowActions(tbody, rows);
   wirePdvRowActions(mobile, rows);
   renderDuplicatiPdv();
+  renderPdvDaSistemare();
 }
 
 export function initPuntiVendita() {

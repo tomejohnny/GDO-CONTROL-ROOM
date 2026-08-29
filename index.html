@@ -197,6 +197,16 @@
                     <div class="actions-bar">
                         <button class="btn" id="pv-new">+ Nuovo punto vendita</button>
                     </div>
+                    <div class="card" id="pv-attenzione-card" style="display:none">
+                        <h2>⚠ Punti vendita da sistemare (<span id="pv-attenzione-count">0</span>)</h2>
+                        <p class="hint">Hanno fatturato registrato (quindi sono clienti attivi a tutti gli effetti) ma risultano "non servito" e/o senza nessun agente in gestione. Sistema qui sotto senza dover aprire ogni scheda.</p>
+                        <div style="overflow-x:auto">
+                            <table class="desktop-table">
+                                <thead><tr><th>Insegna</th><th>Gruppo</th><th style="text-align:right">Fatturato</th><th>Stato</th><th>Agente</th></tr></thead>
+                                <tbody id="pv-attenzione-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
                     <div class="card" id="pv-dup-card" style="display:none">
                         <h2>⚠ Possibili punti vendita duplicati (<span id="pv-dup-count">0</span>)</h2>
                         <p class="hint">Stesso negozio importato da fonti diverse con un nome leggermente diverso (es. con/senza forma societaria). Scegli quale tenere e unisci gli altri: agente, comune, indirizzo e le altre schede vuote vengono completate dagli altri, il venduto viene spostato tutto su quello scelto.</p>
