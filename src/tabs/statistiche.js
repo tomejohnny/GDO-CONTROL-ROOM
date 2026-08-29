@@ -6,9 +6,9 @@ import { articoliComuniTraGruppi } from "../lib/analytics.js";
 
 const TOP_N = 15;
 const sectionState = {
-  articolo: { collapsed: false, showAll: false },
-  pdv: { collapsed: false, showAll: false },
-  agente: { collapsed: false, showAll: false },
+  articolo: { collapsed: true, showAll: false },
+  pdv: { collapsed: true, showAll: false },
+  agente: { collapsed: true, showAll: false },
   comuni: { collapsed: true, showAll: false },
 };
 let lastAggregatedArticolo = [];
@@ -172,6 +172,7 @@ function renderSection(key, tbodyId, items, rowFn, colspan) {
   const toggleBtn = document.getElementById(`st-toggle-${key}`);
   body.style.display = state.collapsed ? "none" : "block";
   toggleBtn.textContent = state.collapsed ? "▸ Espandi" : "▾ Comprimi";
+  toggleBtn.classList.toggle("btn-ghost", !state.collapsed);
   if (state.collapsed) return;
 
   const tbody = document.getElementById(tbodyId);
@@ -201,6 +202,7 @@ function renderComuniSection(items) {
   const toggleBtn = document.getElementById("st-toggle-comuni");
   body.style.display = state.collapsed ? "none" : "block";
   toggleBtn.textContent = state.collapsed ? "▸ Espandi" : "▾ Comprimi";
+  toggleBtn.classList.toggle("btn-ghost", !state.collapsed);
   if (state.collapsed) return;
 
   const listEl = document.getElementById("st-comuni-list");
@@ -425,7 +427,7 @@ export function render() {
         <span id="st-table-title">Venduto per gruppo e articolo</span>
         <span style="display:flex;gap:6px">
           <button class="btn btn-ghost btn-sm" id="st-export-articolo">⇩ Esporta CSV</button>
-          <button class="btn btn-ghost btn-sm" id="st-toggle-articolo">▾ Comprimi</button>
+          <button class="btn btn-sm" id="st-toggle-articolo">▸ Espandi</button>
         </span>
       </h2>
       <div id="st-articolo-body-wrap">
@@ -448,7 +450,7 @@ export function render() {
         <span>Fatturato per punto vendita</span>
         <span style="display:flex;gap:6px">
           <button class="btn btn-ghost btn-sm" id="st-export-pdv">⇩ Esporta CSV</button>
-          <button class="btn btn-ghost btn-sm" id="st-toggle-pdv">▾ Comprimi</button>
+          <button class="btn btn-sm" id="st-toggle-pdv">▸ Espandi</button>
         </span>
       </h2>
       <div id="st-pdv-body-wrap">
@@ -471,7 +473,7 @@ export function render() {
         <span>Venduto per agente</span>
         <span style="display:flex;gap:6px">
           <button class="btn btn-ghost btn-sm" id="st-export-agente">⇩ Esporta CSV</button>
-          <button class="btn btn-ghost btn-sm" id="st-toggle-agente">▾ Comprimi</button>
+          <button class="btn btn-sm" id="st-toggle-agente">▸ Espandi</button>
         </span>
       </h2>
       <div id="st-agente-body-wrap">
@@ -492,7 +494,7 @@ export function render() {
     <div class="card">
       <h2>
         <span>Confronto tra gruppi sugli articoli in comune</span>
-        <button class="btn btn-ghost btn-sm" id="st-toggle-comuni">▸ Espandi</button>
+        <button class="btn btn-sm" id="st-toggle-comuni">▸ Espandi</button>
       </h2>
       <div id="st-comuni-body-wrap">
         <p class="hint">Articoli attivi nell'assortimento di più gruppi: chi li vende di più e a che margine, sullo stesso periodo/categoria filtrati sopra (il filtro gruppo/punto vendita non si applica qui, altrimenti il confronto non avrebbe senso).</p>
