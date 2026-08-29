@@ -1,4 +1,4 @@
-import { getState, gruppoById, articoloById } from "../lib/store.js";
+import { getState, gruppoById, articoloById, agenteNome, agenteById } from "../lib/store.js";
 import { escapeHtml, money, number, percent, CATEGORIE_ARTICOLO } from "../lib/format.js";
 import { barChartVertical } from "../lib/charts.js";
 import { downloadCsv } from "../lib/export.js";
@@ -8,10 +8,12 @@ const TOP_N = 15;
 const sectionState = {
   articolo: { collapsed: false, showAll: false },
   pdv: { collapsed: false, showAll: false },
+  agente: { collapsed: false, showAll: false },
   comuni: { collapsed: true, showAll: false },
 };
 let lastAggregatedArticolo = [];
 let lastAggregatedPdv = [];
+let lastAggregatedAgente = [];
 
 function exportArticoloCsv() {
   const headers = ["Gruppo", "Articolo", "Codice", "Categoria", "Punti vendita", "Quantità", "Valore", "Costo", "Margine €", "Margine %"];
@@ -33,6 +35,16 @@ function exportPdvCsv() {
     return [gruppo?.nome || "", pdv?.nome_insegna || "Aggregato gruppo", g.articoli.size, g.quantita, g.valore_euro.toFixed(2), g.costo_acquisto.toFixed(2), g.margine_valore.toFixed(2), marginePct.toFixed(1)];
   });
   downloadCsv("fatturato_per_punto_vendita.csv", headers, rows);
+}
+
+function exportAgenteCsv() {
+  const headers = ["Agente", "Zona", "Punti vendita attivi", "Fatturato medio/PdV", "Quantità", "Valore", "Costo", "Margine €", "Margine %"];
+  const rows = lastAggregatedAgente.map(g => {
+    const marginePct = g.valore_euro ? (g.margine_valore / g.valore_euro) * 100 : 0;
+    const mediaPdv = g.puntiVendita.size ? g.valore_euro / g.puntiVendita.size : 0;
+    return [agenteNome(g.agente_id) || "Senza agente", g.agente_id != null ? agenteById(g.agente_id)?.zona || "" : "", g.puntiVendita.size, mediaPdv.toFixed(2), g.quantita, g.valore_euro.toFixed(2), g.costo_acquisto.toFixed(2), g.margine_valore.toFixed(2), marginePct.toFixed(1)];
+  });
+  downloadCsv("venduto_per_agente.csv", headers, rows);
 }
 
 function filters() {
@@ -127,6 +139,29 @@ function aggregateByPuntoVendita(rows) {
     g.costo_acquisto += Number(v.costo_acquisto || 0);
     g.margine_valore += Number(v.margine_valore || 0);
     if (v.articolo_id != null) g.articoli.add(v.articolo_id);
+  });
+  return [...groups.values()].sort((a, b) => b.valore_euro - a.valore_euro);
+}
+
+// Stessa aggregazione ma per agente (via il punto vendita che gestisce): chi
+// sta portando più fatturato, non solo a quanti PdV è assegnato. Le vendite
+// di punti vendita senza agente finiscono in un gruppo "Senza agente"
+// separato, cosi' la lacuna si vede subito invece di sparire nel totale.
+function aggregateByAgente(rows) {
+  const pdvAgente = new Map(getState().puntiVendita.map(p => [p.id, p.agente_id]));
+  const groups = new Map();
+  rows.forEach(v => {
+    const agenteId = v.punto_vendita_id != null ? pdvAgente.get(v.punto_vendita_id) ?? null : null;
+    const key = agenteId ?? "senza-agente";
+    if (!groups.has(key)) {
+      groups.set(key, { agente_id: agenteId, quantita: 0, valore_euro: 0, costo_acquisto: 0, margine_valore: 0, puntiVendita: new Set() });
+    }
+    const g = groups.get(key);
+    g.quantita += Number(v.quantita || 0);
+    g.valore_euro += Number(v.valore_euro || 0);
+    g.costo_acquisto += Number(v.costo_acquisto || 0);
+    g.margine_valore += Number(v.margine_valore || 0);
+    if (v.punto_vendita_id != null) g.puntiVendita.add(v.punto_vendita_id);
   });
   return [...groups.values()].sort((a, b) => b.valore_euro - a.valore_euro);
 }
@@ -307,6 +342,24 @@ function renderContent() {
     </tr>`;
   }, 8);
 
+  lastAggregatedAgente = aggregateByAgente(rows);
+  renderSection("agente", "st-table-agente-body", lastAggregatedAgente, g => {
+    const marginePct = g.valore_euro ? (g.margine_valore / g.valore_euro) * 100 : 0;
+    const mediaPdv = g.puntiVendita.size ? g.valore_euro / g.puntiVendita.size : 0;
+    const nome = agenteNome(g.agente_id);
+    return `<tr>
+      <td>${nome ? `<strong>${escapeHtml(nome)}</strong>` : `<span class="text-red">Senza agente</span>`}</td>
+      <td class="text-muted">${escapeHtml(g.agente_id != null ? agenteById(g.agente_id)?.zona || "—" : "—")}</td>
+      <td style="text-align:right">${g.puntiVendita.size || "—"}</td>
+      <td style="text-align:right" class="amount">${money(mediaPdv)}</td>
+      <td style="text-align:right">${number(g.quantita)}</td>
+      <td style="text-align:right" class="amount">${money(g.valore_euro)}</td>
+      <td style="text-align:right" class="amount">${money(g.costo_acquisto)}</td>
+      <td style="text-align:right" class="amount">${money(g.margine_valore)}</td>
+      <td style="text-align:right">${percent(marginePct)}</td>
+    </tr>`;
+  }, 9);
+
   renderComuniSection(articoliComuniTraGruppi(getState().assortimenti, filteredVenditeIgnorandoGruppo()));
 }
 
@@ -415,6 +468,29 @@ export function render() {
     </div>
     <div class="card">
       <h2>
+        <span>Venduto per agente</span>
+        <span style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" id="st-export-agente">⇩ Esporta CSV</button>
+          <button class="btn btn-ghost btn-sm" id="st-toggle-agente">▾ Comprimi</button>
+        </span>
+      </h2>
+      <div id="st-agente-body-wrap">
+        <p class="hint">Chi porta più fatturato, non solo a quanti punti vendita è assegnato. "Fatturato medio/PdV" aiuta a confrontare chi segue pochi clienti grandi con chi ne segue tanti piccoli.</p>
+        <div style="overflow-x:auto">
+          <table class="desktop-table">
+            <thead><tr>
+              <th>Agente</th><th>Zona</th><th style="text-align:right">PdV attivi</th><th style="text-align:right">Fatturato medio/PdV</th>
+              <th style="text-align:right">Quantità</th><th style="text-align:right">Valore</th>
+              <th style="text-align:right">Costo</th><th style="text-align:right">Margine €</th><th style="text-align:right">Margine %</th>
+            </tr></thead>
+            <tbody id="st-table-agente-body"></tbody>
+          </table>
+        </div>
+        <div id="st-agente-more" style="margin-top:12px;text-align:center"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>
         <span>Confronto tra gruppi sugli articoli in comune</span>
         <button class="btn btn-ghost btn-sm" id="st-toggle-comuni">▸ Espandi</button>
       </h2>
@@ -427,6 +503,7 @@ export function render() {
 
   document.getElementById("st-export-articolo").addEventListener("click", exportArticoloCsv);
   document.getElementById("st-export-pdv").addEventListener("click", exportPdvCsv);
+  document.getElementById("st-export-agente").addEventListener("click", exportAgenteCsv);
 
   document.getElementById("st-toggle-articolo").addEventListener("click", () => {
     sectionState.articolo.collapsed = !sectionState.articolo.collapsed;
@@ -434,6 +511,10 @@ export function render() {
   });
   document.getElementById("st-toggle-pdv").addEventListener("click", () => {
     sectionState.pdv.collapsed = !sectionState.pdv.collapsed;
+    renderContent();
+  });
+  document.getElementById("st-toggle-agente").addEventListener("click", () => {
+    sectionState.agente.collapsed = !sectionState.agente.collapsed;
     renderContent();
   });
   document.getElementById("st-toggle-comuni").addEventListener("click", () => {
