@@ -5,6 +5,7 @@ import { openPdvModal, populateGruppoSelect, populateAgenteSelect, wirePdvRowAct
 import { toast, toastError } from "../lib/ui.js";
 import { notifyDataChanged } from "../lib/bus.js";
 import { confirmDialog } from "../lib/confirm.js";
+import { isReadOnly } from "../lib/permissions.js";
 
 // ================================================ PUNTI VENDITA DUPLICATI ===
 
@@ -253,9 +254,9 @@ function renderPdvDaSistemare() {
     <td>
       ${p.stato === "servito"
         ? statoBadge(STATO_PDV, p.stato)
-        : `<div style="display:flex;align-items:center;gap:6px">${statoBadge(STATO_PDV, p.stato)}<button class="btn btn-sm" data-pdv-mark-servito="${p.id}">Segna servito</button></div>`}
+        : `<div style="display:flex;align-items:center;gap:6px">${statoBadge(STATO_PDV, p.stato)}<button class="btn btn-sm rw-only" data-pdv-mark-servito="${p.id}">Segna servito</button></div>`}
     </td>
-    <td><select data-pdv-set-agente="${p.id}" style="font-size:0.75rem;padding:4px 6px;border-radius:6px;border:1px solid ${p.agente_id == null ? "var(--accent-red)" : "var(--border-color)"}"></select></td>
+    <td><select data-pdv-set-agente="${p.id}" ${isReadOnly() ? "disabled" : ""} style="font-size:0.75rem;padding:4px 6px;border-radius:6px;border:1px solid ${p.agente_id == null ? "var(--accent-red)" : "var(--border-color)"}"></select></td>
   </tr>`).join("");
 
   righe.forEach(p => {
